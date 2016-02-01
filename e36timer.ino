@@ -16,24 +16,24 @@ int maxOCR0A = 125;
 int minOCR0A = 60;  
 
 void setup() {
-  	pinMode(indicatorLed, OUTPUT);
+    pinMode(indicatorLed, OUTPUT);
     pinMode(servoPWM, OUTPUT);
     pinMode(escPWM, OUTPUT);
-  	// set up the PWM timer with a frequency to suit the servo and ESC, probably a 20ms period and pulse width of 1 to 2 ms.
+    // set up the PWM timer with a frequency to suit the servo and ESC, probably a 20ms period and pulse width of 1 to 2 ms.
     // prefered PWM Frequency: 50 kHz 
-  	// timer0 is used for functions like delay() so we dont change its frequency.
-  	// set Timer/Counter Control Register A
-  	// with settins to clear OC0A/OC0B on Compare Match, set OC0A/OC0B at BOTTOM (non-inverting mode)
-  	TCCR0A = _BV(COM0A1) | _BV(WGM00);
-  	OCR0A = minOCR0A; // set the servo to the minimum for now
-  	
+    // timer0 is used for functions like delay() so we dont change its frequency.
+    // set Timer/Counter Control Register A
+    // with settins to clear OC0A/OC0B on Compare Match, set OC0A/OC0B at BOTTOM (non-inverting mode)
+    TCCR0A = _BV(COM0A1) | _BV(WGM00);
+    OCR0A = minOCR0A; // set the servo to the minimum for now
+    
     // Set up timer 1 in PWM mode for the ESC
-  	// PWM Frequency: 50 kHz 
+    // PWM Frequency: 50 kHz 
     // Clock Selection: PCK/8
     // CS1[3:0]: 0100
     // OCR1C: 159
     // RESOLUTION: 7.3
-  
+    
     // Timer/Counter1 Control Register
     // Clock Select Bits 3, 2, 1, and 0
     TCCR1 = _BV(CS12);
