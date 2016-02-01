@@ -10,14 +10,16 @@
 
 int indicatorLed = PB1;
 
+int maxOCR0A = 125;
+int minOCR0A = 60;  
+
 void setup() {
   	pinMode(led, OUTPUT);
-  	// todo: set up the PWM timer with a frequency to suit the servo and ESC, probably a 20ms period and pulse width of 1 to 2 ms.
-    // PWM Frequency: 50 kHz 
-    // Clock Selection: PCK/8
-    // CS1[3:0]: 0100
-    // OCR1C: 159
-    // RESOLUTION: 7.3
-    
-  	// todo: keep in mind that timer0 is used for functions like delay() so timer1 is a better choice.
+  	// set up the PWM timer with a frequency to suit the servo and ESC, probably a 20ms period and pulse width of 1 to 2 ms.
+    // prefered PWM Frequency: 50 kHz 
+  	// timer0 is used for functions like delay() so we dont change its frequency.
+  	// set Timer/Counter Control Register A
+  	// with settins to clear OC0A/OC0B on Compare Match, set OC0A/OC0B at BOTTOM (non-inverting mode)
+  	TCCR0A = _BV(COM0A1) | _BV(WGM00);
+  	OCR0A = minOCR0A; // set the servo to the minimum for now
 }
