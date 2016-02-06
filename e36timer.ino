@@ -25,6 +25,7 @@ void setup() {
     pinMode(servoPWM, OUTPUT);
     pinMode(escPWM, OUTPUT);
     pinMode(buttonPin, INPUT);
+	digitalWrite(buttonPin, HIGH); // activate the internal pull up resistor
 
     // set up the PWM timer with a frequency to suit the servo and ESC, probably a 20ms period and pulse width of 1 to 2 ms.
     // prefered PWM Frequency: 50 kHz 
