@@ -51,6 +51,7 @@ ISR(PCINT0_vect) {
         case editDtTime:
             break;
         case waitingStartButton:
+            machineState = motorRun;
             break;
         case motorRun:
             break;
@@ -59,6 +60,8 @@ ISR(PCINT0_vect) {
         case triggerDT:
             break;
         case waitingForRestart:
+            break;
+        default:
             break;
     }
     //    buttonDownCount = buttonDownCount++; // Increment volatile variable
@@ -92,11 +95,13 @@ ISR(TIMER0_COMPA_vect) {
 
 ISR(TIMER0_COMPB_vect) {
     pwmCycleCount++;
+    int pwmCyclesPerWipeStep = 100;
+    int pwmCyclesPerEscStep = 100;
     switch (machineState) {
         case setupSystem:
             break;
         case startWipe:
-            if (pwmCycleCount > 100) {
+            if (pwmCycleCount > pwmCyclesPerWipeStep) {
                 OCR0A = (OCR0A < MaxOCR0A) ? OCR0A + 1 : MaxOCR0A;
                 if (OCR0A >= MaxOCR0A) {
                     machineState = endWipe;
@@ -105,12 +110,11 @@ ISR(TIMER0_COMPB_vect) {
             }
             break;
         case endWipe:
-            if (pwmCycleCount > 100) {
+            if (pwmCycleCount > pwmCyclesPerWipeStep) {
                 OCR0A = (OCR0A > MinOCR0A) ? OCR0A - 1 : MinOCR0A;
                 if (OCR0A <= MinOCR0A) {
-                    machineState = motorRun;
+                    machineState = waitingStartButton;
                     pwmCycleCount = 0;
-                    OCR0B = OCR0A + MinOCR0A; // for now we are using the difference between OCR0A and OCR0B to produce the ESC PWM
                 }
             }
             break;
@@ -119,9 +123,26 @@ ISR(TIMER0_COMPB_vect) {
         case editDtTime:
             break;
         case waitingStartButton:
+            if (pwmCycleCount / 100 % 2 == 0) {
+                PORTB |= (1 << IndicatorLed);
+            } else {
+                PORTB &= ~(1 << IndicatorLed);
+            }
             break;
         case motorRun:
             PORTB &= ~(1 << EscPWM);
+            if (pwmCycleCount > pwmCyclesPerEscStep) {
+                // for now we are using the difference between OCR0A and OCR0B to produce the ESC PWM
+                if (OCR0A <= OCR0A + MaxOCR0A) {
+                    if (pwmCycleCount > 1000) {
+                        machineState = freeFlight;
+                        pwmCycleCount = 0;
+                    }
+                } else {
+                    PORTB |= (1 << IndicatorLed);
+                    OCR0B = (OCR0B < OCR0A + MinOCR0A) ? OCR0B + 1 : OCR0A + MaxOCR0A;
+                }
+            }
             break;
         case freeFlight:
             break;
