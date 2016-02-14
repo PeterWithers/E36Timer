@@ -23,8 +23,8 @@
 
 #define ButtonIsDown 0 // todo: test the button state // digitalRead(buttonPin) == HIGH
 
-#define TurnOnLed ; // todo digitalWrite(indicatorLed, HIGH);
-#define TurnOffLed ; // todo digitalWrite(indicatorLed, LOW);
+#define TurnOnLed PORTB |= (1 << IndicatorLed);
+#define TurnOffLed PORTB &= ~(1 << IndicatorLed);
 
 enum MachineState {
     setupSystem,
@@ -97,6 +97,7 @@ ISR(TIMER0_COMPB_vect) {
     pwmCycleCount++;
     int pwmCyclesPerWipeStep = 100;
     int pwmCyclesPerEscStep = 100;
+    int pwmCyclesFreeFlight = 1000;
     switch (machineState) {
         case setupSystem:
             break;
@@ -124,29 +125,37 @@ ISR(TIMER0_COMPB_vect) {
             break;
         case waitingStartButton:
             if (pwmCycleCount / 100 % 2 == 0) {
-                PORTB |= (1 << IndicatorLed);
+                TurnOnLed;
             } else {
-                PORTB &= ~(1 << IndicatorLed);
+                TurnOffLed;
             }
             break;
         case motorRun:
             PORTB &= ~(1 << EscPWM);
             if (pwmCycleCount > pwmCyclesPerEscStep) {
                 // for now we are using the difference between OCR0A and OCR0B to produce the ESC PWM
-                if (OCR0A <= OCR0A + MaxOCR0A) {
+                if (OCR0B >= OCR0A + MaxOCR0A) {
+                    TurnOffLed;
                     if (pwmCycleCount > 1000) {
+                        OCR0B = OCR0A + MinOCR0A;
                         machineState = freeFlight;
                         pwmCycleCount = 0;
                     }
                 } else {
-                    PORTB |= (1 << IndicatorLed);
+                    TurnOnLed;
                     OCR0B = (OCR0B < OCR0A + MinOCR0A) ? OCR0B + 1 : OCR0A + MaxOCR0A;
                 }
             }
             break;
         case freeFlight:
+            if (pwmCycleCount >= pwmCyclesFreeFlight) {
+                machineState = triggerDT;
+                pwmCycleCount = 0;
+            }
             break;
         case triggerDT:
+            OCR0A = MaxOCR0A;
+            machineState = waitingForRestart;
             break;
         case waitingForRestart:
             break;
