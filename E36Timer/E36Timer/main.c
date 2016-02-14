@@ -42,6 +42,7 @@ enum MachineState {
 volatile enum MachineState machineState = setupSystem;
 
 volatile int buttonDownCount = 0;
+volatile int pwmCycleCount = 0;
 
 ISR(PCINT0_vect) {
     switch (machineState) {
@@ -63,13 +64,55 @@ ISR(PCINT0_vect) {
     //    buttonDownCount = buttonDownCount++; // Increment volatile variable
 }
 
-ISR(TIMER1_COMPA_vect) {
+ISR(TIMER0_COMPA_vect) {
     switch (machineState) {
         case setupSystem:
             break;
         case startWipe:
             break;
         case endWipe:
+            break;
+        case editMotorTime:
+            break;
+        case editDtTime:
+            break;
+        case waitingStartButton:
+            break;
+        case motorRun:
+            PORTB |= (1 << EscPWM);
+            break;
+        case freeFlight:
+            break;
+        case triggerDT:
+            break;
+        case waitingForRestart:
+            break;
+    }
+}
+
+ISR(TIMER0_COMPB_vect) {
+    pwmCycleCount++;
+    switch (machineState) {
+        case setupSystem:
+            break;
+        case startWipe:
+            if (pwmCycleCount > 100) {
+                OCR0A = (OCR0A < MaxOCR0A) ? OCR0A + 1 : MinOCR0A;
+                if (OCR0A >= MaxOCR0A) {
+                    machineState = endWipe;
+                    pwmCycleCount = 0;
+                }
+            }
+            break;
+        case endWipe:
+            if (pwmCycleCount > 100) {
+                OCR0A = (OCR0A < MinOCR0A) ? OCR0A - 1 : MaxOCR0A;
+                if (OCR0A <= MinOCR0A) {
+                    machineState = motorRun;
+                    pwmCycleCount = 0;
+                    OCR0B = OCR0A + MinOCR0A; // for now we are using the difference between OCR0A and OCR0B to produce the ESC PWM
+                }
+            }
             break;
         case editMotorTime:
             break;
@@ -87,36 +130,9 @@ ISR(TIMER1_COMPA_vect) {
         case waitingForRestart:
             break;
     }
-}
-
-ISR(TIMER1_OVF_vect) {
-    switch (machineState) {
-        case setupSystem:
-            break;
-        case startWipe:
-            break;
-        case endWipe:
-            break;
-        case editMotorTime:
-            break;
-        case editDtTime:
-            break;
-        case waitingStartButton:
-            break;
-        case motorRun:
-            break;
-        case freeFlight:
-            break;
-        case triggerDT:
-            break;
-        case waitingForRestart:
-            break;
-    }
     //showMotorTime();
     //showDtTime();
     //startFlightMode();
-
-    PORTB |= (1 << EscPWM);
 }
 
 void loadSavedSettings() {
@@ -132,7 +148,8 @@ void setupRegisters() {
     PORTB |= 1 << ButtonPin; // activate the internal pull up resistor
     GIMSK |= 1 << PCIE; // enable pin change interrupts
     PCMSK |= 1 << ButtonPin; // enable button interrupts 
-
+    TIMSK |= 1 << OCIE0A; // enable timer0 compare match A interrupt
+    TIMSK |= 1 << OCIE0B; // enable timer0 compare match B interrupt
     // set up the PWM timer with a frequency to suit the servo and ESC, probably a 20ms period and pulse width of 1 to 2 ms.
     // preferred PWM Frequency: 50 kHz
     // timer0 is used for functions like delay() so care must be taken.
@@ -140,6 +157,7 @@ void setupRegisters() {
     // with settings to clear OC0A/OC0B on Compare Match, set OC0A/OC0B at BOTTOM (non-inverting mode)
     TCCR0A = 1 << COM0A1 | 1 << WGM00;
     OCR0A = MinOCR0A; // set the servo to the minimum for now
+    OCR0B = 0;
 }
 
 int getInput() {
@@ -188,11 +206,17 @@ void startFlightMode() {
     OCR0A = 60;
 }
 
+//void loop() {
+//}
+
+//void setup() {
+
 int main(void) {
     cli();
     loadSavedSettings();
     setupRegisters();
     sei();
+    machineState = startWipe;
     while (1) {
     }
 }
