@@ -97,7 +97,7 @@ ISR(TIMER0_COMPB_vect) {
             break;
         case startWipe:
             if (pwmCycleCount > 100) {
-                OCR0A = (OCR0A < MaxOCR0A) ? OCR0A + 1 : MinOCR0A;
+                OCR0A = (OCR0A < MaxOCR0A) ? OCR0A + 1 : MaxOCR0A;
                 if (OCR0A >= MaxOCR0A) {
                     machineState = endWipe;
                     pwmCycleCount = 0;
@@ -106,7 +106,7 @@ ISR(TIMER0_COMPB_vect) {
             break;
         case endWipe:
             if (pwmCycleCount > 100) {
-                OCR0A = (OCR0A < MinOCR0A) ? OCR0A - 1 : MaxOCR0A;
+                OCR0A = (OCR0A > MinOCR0A) ? OCR0A - 1 : MinOCR0A;
                 if (OCR0A <= MinOCR0A) {
                     machineState = motorRun;
                     pwmCycleCount = 0;
