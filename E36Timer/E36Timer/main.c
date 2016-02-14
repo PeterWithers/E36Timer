@@ -120,8 +120,10 @@ ISR(TIMER0_COMPB_vect) {
             }
             break;
         case editMotorTime:
+            // todo: flash led one pulse
             break;
         case editDtTime:
+            // todo: flash led two pulses
             break;
         case waitingStartButton:
             if (pwmCycleCount / 100 % 2 == 0) {
