@@ -14,14 +14,14 @@
 //#include <avr/eeprom.h>
 
 #define IndicatorLed     PB1
-#define ServoPWM	 PB0
-#define EscPWM		 PB4
-#define ButtonPin	 PB2
+#define ServoPWM         PB0
+#define EscPWM           PB4
+#define ButtonPin        PB2
 
 #define MaxOCR0A 125
 #define MinOCR0A 60
 
-#define ButtonIsDown 0 // todo: test the button state // digitalRead(buttonPin) == HIGH
+#define ButtonIsDown !(PINB & (1 << ButtonPin))
 
 #define TurnOnLed PORTB |= (1 << IndicatorLed);
 #define TurnOffLed PORTB &= ~(1 << IndicatorLed);
@@ -32,7 +32,8 @@ enum MachineState {
     endWipe,
     editMotorTime,
     editDtTime,
-    waitingStartButton,
+    waitingButtonStart,
+    waitingButtonRelease,
     motorRun,
     freeFlight,
     triggerDT,
@@ -50,8 +51,15 @@ ISR(PCINT0_vect) {
             break;
         case editDtTime:
             break;
-        case waitingStartButton:
-            machineState = motorRun;
+        case waitingButtonStart:
+            if (ButtonIsDown) {
+                machineState = waitingButtonRelease;
+            }
+            break;
+        case waitingButtonRelease:
+            if (!ButtonIsDown) {
+                machineState = motorRun;
+            }
             break;
         case motorRun:
             break;
@@ -79,7 +87,9 @@ ISR(TIMER0_COMPA_vect) {
             break;
         case editDtTime:
             break;
-        case waitingStartButton:
+        case waitingButtonStart:
+            break;
+        case waitingButtonRelease:
             break;
         case motorRun:
             PORTB |= (1 << EscPWM);
@@ -114,7 +124,7 @@ ISR(TIMER0_COMPB_vect) {
             if (pwmCycleCount > pwmCyclesPerWipeStep) {
                 OCR0A = (OCR0A > MinOCR0A) ? OCR0A - 1 : MinOCR0A;
                 if (OCR0A <= MinOCR0A) {
-                    machineState = waitingStartButton;
+                    machineState = waitingButtonStart;
                     pwmCycleCount = 0;
                 }
             }
@@ -125,8 +135,15 @@ ISR(TIMER0_COMPB_vect) {
         case editDtTime:
             // todo: flash led two pulses
             break;
-        case waitingStartButton:
+        case waitingButtonStart:
             if (pwmCycleCount / 100 % 2 == 0) {
+                TurnOnLed;
+            } else {
+                TurnOffLed;
+            }
+            break;
+        case waitingButtonRelease:
+            if (pwmCycleCount / 50 % 2 == 0) {
                 TurnOnLed;
             } else {
                 TurnOffLed;
