@@ -42,37 +42,38 @@ enum MachineState {
 
 volatile enum MachineState machineState = setupSystem;
 
-volatile int buttonDownCount = 0;
+volatile int buttonCountSinceLastChange = 0;
 volatile int pwmCycleCount = 0;
 
 ISR(PCINT0_vect) {
-    switch (machineState) {
-        case editMotorTime:
-            break;
-        case editDtTime:
-            break;
-        case waitingButtonStart:
-            if (ButtonIsDown) {
-                machineState = waitingButtonRelease;
-            }
-            break;
-        case waitingButtonRelease:
-            if (!ButtonIsDown) {
-                machineState = motorRun;
-            }
-            break;
-        case motorRun:
-            break;
-        case freeFlight:
-            break;
-        case triggerDT:
-            break;
-        case waitingForRestart:
-            break;
-        default:
-            break;
+    if(buttonCountSinceLastChange > 10) {
+        switch (machineState) {
+            case editMotorTime:
+                break;
+            case editDtTime:
+                break;
+            case waitingButtonStart:
+                if (ButtonIsDown) {
+                    machineState = waitingButtonRelease;
+                }
+                break;
+            case waitingButtonRelease:
+                if (!ButtonIsDown) {
+                    machineState = motorRun;
+                }
+                break;
+            case motorRun:
+                break;
+            case freeFlight:
+                break;
+            case triggerDT:
+                break;
+            case waitingForRestart:
+                break;
+            default:
+                break;
+        }
     }
-    //    buttonDownCount = buttonDownCount++; // Increment volatile variable
 }
 
 ISR(TIMER0_COMPA_vect) {
@@ -105,6 +106,7 @@ ISR(TIMER0_COMPA_vect) {
 
 ISR(TIMER0_COMPB_vect) {
     pwmCycleCount++;
+    buttonCountSinceLastChange++;
     int pwmCyclesPerWipeStep = 100;
     int pwmCyclesPerEscStep = 100;
     int pwmCyclesFreeFlight = 1000;
@@ -218,7 +220,7 @@ int getInput() {
         } else {
             TurnOffLed;
         }
-        TCNT1 = 0;
+        TCNT1 = 0; 
         while (TCNT1 < 10) {
 
         }
