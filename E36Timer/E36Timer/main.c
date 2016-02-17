@@ -246,9 +246,6 @@ ISR(TIMER0_COMPB_vect) {
         case waitingForRestart:
             break;
     }
-    //showMotorTime();
-    //showDtTime();
-    //startFlightMode();
 }
 
 void loadSavedSettings() {
@@ -274,15 +271,6 @@ void setupRegisters() {
     TCCR0A = 1 << COM0A1 | 1 << WGM00;
     OCR0A = MinOCR0A; // set the servo to the minimum for now
     OCR0B = 0;
-}
-
-void showDtTime() {
-    OCR0A = 80;
-    //delay(1000);
-}
-
-void startFlightMode() {
-    OCR0A = 60;
 }
 
 //void loop() {
