@@ -21,6 +21,9 @@
 #define MaxOCR0A 125
 #define MinOCR0A 60
 
+#define DethermaliseHold OCR0A = MinOCR0A;
+#define DethermaliseRelease OCR0A = MaxOCR0A;
+
 #define ButtonIsDown !(PINB & (1 << ButtonPin))
 
 #define TurnOnLed PORTB |= (1 << IndicatorLed);
@@ -202,6 +205,7 @@ ISR(TIMER0_COMPB_vect) {
         case editDtTime:
             if (pwmCycleCount > editingTimeoutSeconds * cyclesPerSecond) {
                 machineState = waitingButtonStart;
+                DethermaliseHold;
                 pwmCycleCount = 0;
             }
             trippleFlash(pwmCycleCount);
@@ -236,7 +240,7 @@ ISR(TIMER0_COMPB_vect) {
             }
             break;
         case triggerDT:
-            OCR0A = MaxOCR0A;
+            DethermaliseRelease;
             machineState = waitingForRestart;
             break;
         case waitingForRestart:
