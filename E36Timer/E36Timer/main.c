@@ -26,6 +26,9 @@
 #define TurnOnLed PORTB |= (1 << IndicatorLed);
 #define TurnOffLed PORTB &= ~(1 << IndicatorLed);
 
+#define DisplayMotorTime OCR0A = MinOCR0A + (MaxOCR0A - MinOCR0A) * motorIncrementValue / (motorIncrementSize - 1);
+#define DisplayDethermalTime OCR0A = MinOCR0A + (MaxOCR0A - MinOCR0A) * dethermalIncrementValue / (dethermalIncrementSize - 1);
+
 enum MachineState {
     setupSystem,
     startWipe, // when the device resets we wipe the servo arm to release the DT lever so that a reset in midair does not prevent DT
@@ -45,19 +48,34 @@ volatile enum MachineState machineState = setupSystem;
 volatile int buttonCountSinceLastChange = 0;
 volatile int pwmCycleCount = 0;
 
-volatile int motorSeconds = 15;
-volatile int dethermalSeconds = 30;
 volatile const int editingTimeoutSeconds = 10;
 volatile const int cyclesPerSecond = 100;
+
+const int motorIncrements[] = {5, 10, 15};
+const int motorIncrementSize = 3;
+volatile int motorIncrementValue = 2;
+const int dethermalIncrements[] = {0, 5, 30, 60, 90, 120, 180, 240, 300};
+const int dethermalIncrementSize = 9;
+volatile int dethermalIncrementValue = 3;
 
 ISR(PCINT0_vect) {
     if (buttonCountSinceLastChange > 10) {
         switch (machineState) {
             case editMotorTime:
-                //                motorSeconds
+                if (ButtonIsDown) {
+                    // adjust motorSeconds
+                    motorIncrementValue = (motorIncrementValue < motorIncrementSize - 1) ? motorIncrementValue + 1 : 0;
+                    DisplayMotorTime;
+                    pwmCycleCount = 0;
+                }
                 break;
             case editDtTime:
-                //            dethermalSeconds
+                if (ButtonIsDown) {
+                    // adjust dethermalSeconds
+                    dethermalIncrementValue = (dethermalIncrementValue < dethermalIncrementSize - 1) ? dethermalIncrementValue + 1 : 0;
+                    DisplayDethermalTime;
+                    pwmCycleCount = 0;
+                }
                 break;
             case waitingButtonStart:
                 if (ButtonIsDown) {
@@ -168,6 +186,7 @@ ISR(TIMER0_COMPB_vect) {
                 OCR0A = (OCR0A > MinOCR0A) ? OCR0A - 1 : MinOCR0A;
                 if (OCR0A <= MinOCR0A) {
                     machineState = editMotorTime;
+                    DisplayMotorTime;
                     pwmCycleCount = 0;
                 }
             }
@@ -175,6 +194,7 @@ ISR(TIMER0_COMPB_vect) {
         case editMotorTime:
             if (pwmCycleCount > editingTimeoutSeconds * cyclesPerSecond) {
                 machineState = editDtTime;
+                DisplayDethermalTime;
                 pwmCycleCount = 0;
             }
             doubleFlash(pwmCycleCount);
@@ -266,7 +286,7 @@ void startFlightMode() {
 
 //void setup() {
 
-int main(void) {
+    int main(void) {
     cli();
     loadSavedSettings();
     setupRegisters();
