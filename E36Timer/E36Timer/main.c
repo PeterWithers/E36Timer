@@ -45,12 +45,19 @@ volatile enum MachineState machineState = setupSystem;
 volatile int buttonCountSinceLastChange = 0;
 volatile int pwmCycleCount = 0;
 
+volatile int motorSeconds = 15;
+volatile int dethermalSeconds = 30;
+volatile const int editingTimeoutSeconds = 10;
+volatile const int cyclesPerSecond = 100;
+
 ISR(PCINT0_vect) {
-    if(buttonCountSinceLastChange > 10) {
+    if (buttonCountSinceLastChange > 10) {
         switch (machineState) {
             case editMotorTime:
+                //                motorSeconds
                 break;
             case editDtTime:
+                //            dethermalSeconds
                 break;
             case waitingButtonStart:
                 if (ButtonIsDown) {
@@ -104,6 +111,40 @@ ISR(TIMER0_COMPA_vect) {
     }
 }
 
+void slowFlash(int pwmCycleCount) {
+    if (pwmCycleCount / cyclesPerSecond % 2 == 0) {
+        TurnOnLed;
+    } else {
+        TurnOffLed;
+    }
+}
+
+void fastFlash(int pwmCycleCount) {
+    if (pwmCycleCount / (cyclesPerSecond / 2) % 2 == 0) {
+        TurnOnLed;
+    } else {
+        TurnOffLed;
+    }
+}
+
+void doubleFlash(int pwmCycleCount) {
+    int pulseIndex = pwmCycleCount / cyclesPerSecond % 10;
+    if (pulseIndex == 0 || pulseIndex == 3) {
+        TurnOnLed;
+    } else {
+        TurnOffLed;
+    }
+}
+
+void trippleFlash(int pwmCycleCount) {
+    int pulseIndex = pwmCycleCount / cyclesPerSecond % 10;
+    if (pulseIndex == 0 || pulseIndex == 3 || pulseIndex == 5) {
+        TurnOnLed;
+    } else {
+        TurnOffLed;
+    }
+}
+
 ISR(TIMER0_COMPB_vect) {
     pwmCycleCount++;
     buttonCountSinceLastChange++;
@@ -126,30 +167,30 @@ ISR(TIMER0_COMPB_vect) {
             if (pwmCycleCount > pwmCyclesPerWipeStep) {
                 OCR0A = (OCR0A > MinOCR0A) ? OCR0A - 1 : MinOCR0A;
                 if (OCR0A <= MinOCR0A) {
-                    machineState = waitingButtonStart;
+                    machineState = editMotorTime;
                     pwmCycleCount = 0;
                 }
             }
             break;
         case editMotorTime:
-            // todo: flash led one pulse
+            if (pwmCycleCount > editingTimeoutSeconds * cyclesPerSecond) {
+                machineState = editDtTime;
+                pwmCycleCount = 0;
+            }
+            doubleFlash(pwmCycleCount);
             break;
         case editDtTime:
-            // todo: flash led two pulses
+            if (pwmCycleCount > editingTimeoutSeconds * cyclesPerSecond) {
+                machineState = waitingButtonStart;
+                pwmCycleCount = 0;
+            }
+            trippleFlash(pwmCycleCount);
             break;
         case waitingButtonStart:
-            if (pwmCycleCount / 100 % 2 == 0) {
-                TurnOnLed;
-            } else {
-                TurnOffLed;
-            }
+            slowFlash(pwmCycleCount);
             break;
         case waitingButtonRelease:
-            if (pwmCycleCount / 50 % 2 == 0) {
-                TurnOnLed;
-            } else {
-                TurnOffLed;
-            }
+            fastFlash(pwmCycleCount);
             break;
         case motorRun:
             PORTB &= ~(1 << EscPWM);
@@ -209,43 +250,6 @@ void setupRegisters() {
     TCCR0A = 1 << COM0A1 | 1 << WGM00;
     OCR0A = MinOCR0A; // set the servo to the minimum for now
     OCR0B = 0;
-}
-
-int getInput() {
-    int hitCount = 0;
-    for (int counter = 10; counter > 0; counter--) {
-        if (ButtonIsDown) {
-            hitCount++;
-            TurnOnLed;
-        } else {
-            TurnOffLed;
-        }
-        TCNT1 = 0; 
-        while (TCNT1 < 10) {
-
-        }
-    }
-    TurnOffLed;
-    if (hitCount > 5) {
-        return -1;
-    } else if (hitCount > 2) {
-        return 1;
-    } else {
-        return 0;
-    }
-}
-
-void showMotorTime() {
-    int inputTimeout = 10;
-    while (inputTimeout > 0) {
-        int input = getInput();
-        if (input != 0) {
-            OCR0A += input;
-        } else {
-            inputTimeout--;
-        }
-    }
-    //delay(1000);
 }
 
 void showDtTime() {
