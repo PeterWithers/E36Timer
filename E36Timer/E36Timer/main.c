@@ -271,6 +271,7 @@ void setupRegisters() {
     TCCR0A = 1 << COM0A1 | 1 << WGM00;
     OCR0A = MinOCR0A; // set the servo to the minimum for now
     OCR0B = 0;
+    TCCR0B |= (1<<CS00)|(1<<CS02); // start timer0
 }
 
 //void loop() {
