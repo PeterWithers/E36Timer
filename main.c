@@ -52,7 +52,7 @@ volatile int buttonCountSinceLastChange = 0;
 volatile int pwmCycleCount = 0;
 
 volatile const int editingTimeoutSeconds = 10;
-volatile const int cyclesPerSecond = 100;
+volatile const int cyclesPerSecond = 50;
 
 const int motorIncrements[] = {5, 10, 15};
 const int motorIncrementSize = 3;
@@ -60,6 +60,7 @@ volatile int motorIncrementValue = 2;
 const int dethermalIncrements[] = {0, 5, 30, 60, 90, 120, 180, 240, 300};
 const int dethermalIncrementSize = 9;
 volatile int dethermalIncrementValue = 3;
+volatile int timer0OverflowCounter = 0;
 
 ISR(PCINT0_vect) {
     if (buttonCountSinceLastChange > 10) {
@@ -88,6 +89,8 @@ ISR(PCINT0_vect) {
             case waitingButtonRelease:
                 if (!ButtonIsDown) {
                     machineState = motorRun;
+                } else {
+                    machineState = waitingButtonRelease;
                 }
                 break;
             case motorRun:
@@ -104,7 +107,20 @@ ISR(PCINT0_vect) {
     }
 }
 
+
+ISR(TIMER0_OVF_vect)
+{
+    timer0OverflowCounter = (timer0OverflowCounter > 8)? 0 : timer0OverflowCounter + 1;
+    if (timer0OverflowCounter == 1) {
+        PORTB |= (1 << ServoPWM);
+        PORTB |= (1 << EscPWM);
+    }
+}
+
 ISR(TIMER0_COMPA_vect) {
+    if (timer0OverflowCounter == 1) {
+        PORTB &= ~(1 << ServoPWM);
+    }
     switch (machineState) {
         case setupSystem:
             break;
@@ -141,7 +157,7 @@ void slowFlash(int pwmCycleCount) {
 }
 
 void fastFlash(int pwmCycleCount) {
-    if (pwmCycleCount / (cyclesPerSecond / 2) % 2 == 0) {
+    if ((pwmCycleCount / (cyclesPerSecond / 5)) % 2 == 0) {
         TurnOnLed;
     } else {
         TurnOffLed;
@@ -149,7 +165,7 @@ void fastFlash(int pwmCycleCount) {
 }
 
 void doubleFlash(int pwmCycleCount) {
-    int pulseIndex = pwmCycleCount / cyclesPerSecond % 10;
+    int pulseIndex = (pwmCycleCount / (cyclesPerSecond / 5)) % 10;
     if (pulseIndex == 0 || pulseIndex == 3) {
         TurnOnLed;
     } else {
@@ -158,8 +174,8 @@ void doubleFlash(int pwmCycleCount) {
 }
 
 void trippleFlash(int pwmCycleCount) {
-    int pulseIndex = pwmCycleCount / cyclesPerSecond % 10;
-    if (pulseIndex == 0 || pulseIndex == 3 || pulseIndex == 5) {
+    int pulseIndex = (pwmCycleCount / (cyclesPerSecond / 5)) % 10;
+    if (pulseIndex == 0 || pulseIndex == 2 || pulseIndex == 4) {
         TurnOnLed;
     } else {
         TurnOffLed;
@@ -167,6 +183,9 @@ void trippleFlash(int pwmCycleCount) {
 }
 
 ISR(TIMER0_COMPB_vect) {
+    if (timer0OverflowCounter == 1) {
+        PORTB &= ~(1 << EscPWM);
+    }
     pwmCycleCount++;
     buttonCountSinceLastChange++;
     int pwmCyclesPerWipeStep = 100;
@@ -263,15 +282,19 @@ void setupRegisters() {
     PCMSK |= 1 << ButtonPin; // enable button interrupts 
     TIMSK |= 1 << OCIE0A; // enable timer0 compare match A interrupt
     TIMSK |= 1 << OCIE0B; // enable timer0 compare match B interrupt
+    TIMSK |= 1 << TOIE0; // enable timer0 overflow interrupt
     // set up the PWM timer with a frequency to suit the servo and ESC, probably a 20ms period and pulse width of 1 to 2 ms.
     // preferred PWM Frequency: 50 kHz
     // timer0 is used for functions like delay() so care must be taken.
     // set Timer/Counter Control Register A
     // with settings to clear OC0A/OC0B on Compare Match, set OC0A/OC0B at BOTTOM (non-inverting mode)
-    TCCR0A = 1 << COM0A1 | 1 << WGM00;
+    //TCCR0A = 1 << COM0A1 | 1 << WGM00; // set PWM output to PB0
+    TCCR0A = 1 << WGM00;
     OCR0A = MinOCR0A; // set the servo to the minimum for now
-    OCR0B = 0;
-    TCCR0B |= (1<<CS00)|(1<<CS02); // start timer0
+    OCR0B = MinOCR0A; // set the ESC to the minimum for now
+//    TCCR0B |= (1 << CS00) | (1 << CS02); // start timer0 31.5hz
+//    TCCR0B |= (1 << CS02); // start timer0 126.8hz : 10hz
+    TCCR0B |= (1 << CS00) | (1 << CS01); // start timer0 126.8hz : 10hz
 }
 
 //void loop() {
@@ -279,7 +302,7 @@ void setupRegisters() {
 
 //void setup() {
 
-    int main(void) {
+int main(void) {
     cli();
     loadSavedSettings();
     setupRegisters();
@@ -288,4 +311,3 @@ void setupRegisters() {
     while (1) {
     }
 }
-
