@@ -107,10 +107,8 @@ ISR(PCINT0_vect) {
     }
 }
 
-
-ISR(TIMER0_OVF_vect)
-{
-    timer0OverflowCounter = (timer0OverflowCounter > 8)? 0 : timer0OverflowCounter + 1;
+ISR(TIMER0_OVF_vect) {
+    timer0OverflowCounter = (timer0OverflowCounter > 8) ? 0 : timer0OverflowCounter + 1;
     if (timer0OverflowCounter == 1) {
         PORTB |= (1 << ServoPWM);
         PORTB |= (1 << EscPWM);
@@ -268,8 +266,12 @@ ISR(TIMER0_COMPB_vect) {
 }
 
 void loadSavedSettings() {
-    //EEPROM.write(a,b);
-    //z = EEPROM.read(a);
+    // use update not write to preserve eeprom life
+//    uint8_t motorRunAddress = 1;
+//    uint8_t dtTimeAddress = 2;
+//    eeprom_update_byte(&motorRunAddress, 10);
+//    uint8_t z = eeprom_read_byte(&motorRunAddress);
+    //http://www.atmel.com/webdoc/AVRLibcReferenceManual/group__avr__eeprom.html
 }
 
 void setupRegisters() {
@@ -292,8 +294,8 @@ void setupRegisters() {
     TCCR0A = 1 << WGM00;
     OCR0A = MinOCR0A; // set the servo to the minimum for now
     OCR0B = MinOCR0A; // set the ESC to the minimum for now
-//    TCCR0B |= (1 << CS00) | (1 << CS02); // start timer0 31.5hz
-//    TCCR0B |= (1 << CS02); // start timer0 126.8hz : 10hz
+    //    TCCR0B |= (1 << CS00) | (1 << CS02); // start timer0 31.5hz
+    //    TCCR0B |= (1 << CS02); // start timer0 126.8hz : 10hz
     TCCR0B |= (1 << CS00) | (1 << CS01); // start timer0 126.8hz : 10hz
 }
 
