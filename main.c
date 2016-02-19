@@ -18,8 +18,10 @@
 #define EscPWM           PB4
 #define ButtonPin        PB2
 
-#define MaxOCR0A 125
-#define MinOCR0A 60
+//#define MaxOCR0A 125
+//#define MinOCR0A 60
+#define MaxOCR0A 255
+#define MinOCR0A 128
 
 #define DethermaliseHold OCR0A = MinOCR0A;
 #define DethermaliseRelease OCR0A = MaxOCR0A;
@@ -52,7 +54,7 @@ volatile int buttonCountSinceLastChange = 0;
 volatile int pwmCycleCount = 0;
 
 volatile const int editingTimeoutSeconds = 10;
-volatile const int cyclesPerSecond = 50;
+volatile const int cyclesPerSecond = 500;
 
 const int motorIncrements[] = {5, 10, 15};
 const int motorIncrementSize = 3;
