@@ -21,7 +21,7 @@
 //#define MaxOCR0A 125
 //#define MinOCR0A 60
 #define MaxOCR0A 140
-#define MinOCR0A 31
+#define MinOCR0A 50
 
 #define ButtonIsDown ((PINB & (1 << ButtonPin)) == 0)
 
