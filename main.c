@@ -28,8 +28,8 @@
 #define TurnOnLed PORTB |= (1 << IndicatorLed);
 #define TurnOffLed PORTB &= ~(1 << IndicatorLed);
 
-#define DisplayMotorTime OCR0A = MinOCR0A + ((MaxOCR0A - MinOCR0A) * motorIncrementValue / (motorIncrementSize - 1));
-#define DisplayDethermalTime OCR0A = MinOCR0A + ((MaxOCR0A - MinOCR0A) * dethermalIncrementValue / (dethermalIncrementSize - 1));
+#define DisplayMotorTime OCR0A = MinOCR0A + ((MaxOCR0A - MinOCR0A) * motorSecondsIndex / (motorSecondsSize - 1));
+#define DisplayDethermalTime OCR0A = MinOCR0A + ((MaxOCR0A - MinOCR0A) * dethermalSecondsIndex / (dethermalSecondsSize - 1));
 
 enum MachineState {
     setupSystem,
@@ -54,12 +54,12 @@ volatile int pwmCycleCount = 0;
 volatile const int editingTimeoutSeconds = 10;
 volatile const int cyclesPerSecond = 50;
 
-const int motorIncrements[] = {5, 10, 15};
-const int motorIncrementSize = 3;
-volatile int motorIncrementValue = 2;
-const int dethermalIncrements[] = {0, 5, 30, 60, 90, 120, 180, 240, 300};
-const int dethermalIncrementSize = 9;
-volatile int dethermalIncrementValue = 3;
+const int motorSeconds[] = {2, 4, 5, 7, 10, 15};
+const int motorSecondsSize = 6;
+volatile int motorSecondsIndex = 0;
+const int dethermalSeconds[] = {0, 5, 30, 60, 90, 120, 180, 240, 300};
+const int dethermalSecondsSize = 9;
+volatile int dethermalSecondsIndex = 0;
 volatile int timer0OverflowCounter = 0;
 const int waitingEscValue = ((MaxOCR0A - MinOCR0A) / 3) + MinOCR0A;
 
@@ -110,8 +110,6 @@ ISR(TIMER0_OVF_vect) {
     if (timer0OverflowCounter == 3) {
         pwmCycleCount++;
         buttonCountSinceLastChange++;
-        int pwmCyclesFreeFlight = 100;
-        int pwmCyclesMotorRun = 100;
         switch (machineState) {
             case setupSystem:
                 break;
@@ -132,7 +130,7 @@ ISR(TIMER0_OVF_vect) {
                 if (buttonCountSinceLastChange > buttonDebounceValue) {
                     if (ButtonIsDown) {
                         // adjust motorSeconds
-                        motorIncrementValue = (motorIncrementValue < motorIncrementSize - 1) ? motorIncrementValue + 1 : 0;
+                        motorSecondsIndex = (motorSecondsIndex < motorSecondsSize - 1) ? motorSecondsIndex + 1 : 0;
                         DisplayMotorTime;
                         pwmCycleCount = 0;
                     }
@@ -149,7 +147,7 @@ ISR(TIMER0_OVF_vect) {
                 if (buttonCountSinceLastChange > buttonDebounceValue) {
                     if (ButtonIsDown) {
                         // adjust dethermalSeconds
-                        dethermalIncrementValue = (dethermalIncrementValue < dethermalIncrementSize - 1) ? dethermalIncrementValue + 1 : 0;
+                        dethermalSecondsIndex = (dethermalSecondsIndex < dethermalSecondsSize - 1) ? dethermalSecondsIndex + 1 : 0;
                         DisplayDethermalTime;
                         pwmCycleCount = 0;
                     }
@@ -178,33 +176,42 @@ ISR(TIMER0_OVF_vect) {
                 if (buttonCountSinceLastChange > buttonDebounceValue) {
                     if (!ButtonIsDown) {
                         machineState = motorRun;
+                        pwmCycleCount = 0;
                     }
                     buttonCountSinceLastChange = 0;
                 }
                 fastFlash(pwmCycleCount);
                 break;
             case motorRun:
-                if (OCR0B >= MaxOCR0A) {
-                    TurnOffLed;
-                    if (pwmCycleCount > pwmCyclesMotorRun) {
+                if (pwmCycleCount / cyclesPerSecond > motorSeconds[motorSecondsIndex]) {
+                    // power down and switch state
+                    OCR0B = (OCR0B > MinOCR0A) ? OCR0B - 1 : MinOCR0A;
+                    if (OCR0B <= MinOCR0A) {
+                        TurnOffLed;
                         machineState = freeFlight;
                         pwmCycleCount = 0;
+                    } else {
+                        TurnOnLed;
                     }
                 } else {
-                    TurnOnLed;
-                    OCR0B = (OCR0B < MaxOCR0A) ? OCR0B + 1 : MaxOCR0A;
-                }
-                // allow restarts starts
-                if (buttonCountSinceLastChange > buttonDebounceValue) {
-                    if (ButtonIsDown) {
-                        machineState = waitingButtonRelease;
+                    if (OCR0B >= MaxOCR0A) {
+                        TurnOffLed;
+                    } else {
+                        TurnOnLed;
+                        OCR0B = (OCR0B < MaxOCR0A) ? OCR0B + 1 : MaxOCR0A;
                     }
-                    buttonCountSinceLastChange = 0;
+                    // allow restarts starts
+                    if (buttonCountSinceLastChange > buttonDebounceValue) {
+                        if (ButtonIsDown) {
+                            machineState = waitingButtonRelease;
+                            pwmCycleCount = 0;
+                        }
+                        buttonCountSinceLastChange = 0;
+                    }
                 }
                 break;
             case freeFlight:
-                OCR0B = (OCR0B > MinOCR0A) ? OCR0B - 1 : MinOCR0A;
-                if (pwmCycleCount >= pwmCyclesFreeFlight) {
+                if (pwmCycleCount / cyclesPerSecond > dethermalSeconds[dethermalSecondsIndex]) {
                     machineState = triggerDT;
                     pwmCycleCount = 0;
                 }
