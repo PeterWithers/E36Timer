@@ -20,8 +20,8 @@
 
 //#define MaxOCR0A 125
 //#define MinOCR0A 60
-#define MaxOCR0A 255
-#define MinOCR0A 128
+#define MaxOCR0A 245
+#define MinOCR0A 118
 
 #define DethermaliseHold OCR0A = MinOCR0A;
 #define DethermaliseRelease OCR0A = MaxOCR0A;
@@ -31,8 +31,8 @@
 #define TurnOnLed PORTB |= (1 << IndicatorLed);
 #define TurnOffLed PORTB &= ~(1 << IndicatorLed);
 
-#define DisplayMotorTime OCR0A = MinOCR0A + (MaxOCR0A - MinOCR0A) * motorIncrementValue / (motorIncrementSize - 1);
-#define DisplayDethermalTime OCR0A = MinOCR0A + (MaxOCR0A - MinOCR0A) * dethermalIncrementValue / (dethermalIncrementSize - 1);
+#define DisplayMotorTime OCR0A = MinOCR0A + ((MaxOCR0A - MinOCR0A) * motorIncrementValue / (motorIncrementSize - 1));
+#define DisplayDethermalTime OCR0A = MinOCR0A + ((MaxOCR0A - MinOCR0A) * dethermalIncrementValue / (dethermalIncrementSize - 1));
 
 enum MachineState {
     setupSystem,
@@ -63,6 +63,40 @@ const int dethermalIncrements[] = {0, 5, 30, 60, 90, 120, 180, 240, 300};
 const int dethermalIncrementSize = 9;
 volatile int dethermalIncrementValue = 3;
 volatile int timer0OverflowCounter = 0;
+
+void slowFlash(int pwmCycleCount) {
+    if (pwmCycleCount / cyclesPerSecond % 2 == 0) {
+        TurnOnLed;
+    } else {
+        TurnOffLed;
+    }
+}
+
+void fastFlash(int pwmCycleCount) {
+    if ((pwmCycleCount / (cyclesPerSecond / 5)) % 2 == 0) {
+        TurnOnLed;
+    } else {
+        TurnOffLed;
+    }
+}
+
+void doubleFlash(int pwmCycleCount) {
+    int pulseIndex = (pwmCycleCount / (cyclesPerSecond / 5)) % 10;
+    if (pulseIndex == 0 || pulseIndex == 3) {
+        TurnOnLed;
+    } else {
+        TurnOffLed;
+    }
+}
+
+void trippleFlash(int pwmCycleCount) {
+    int pulseIndex = (pwmCycleCount / (cyclesPerSecond / 5)) % 10;
+    if (pulseIndex == 0 || pulseIndex == 2 || pulseIndex == 4) {
+        TurnOnLed;
+    } else {
+        TurnOffLed;
+    }
+}
 
 ISR(PCINT0_vect) {
     if (buttonCountSinceLastChange > 10) {
@@ -115,82 +149,11 @@ ISR(TIMER0_OVF_vect) {
         PORTB |= (1 << ServoPWM);
         PORTB |= (1 << EscPWM);
     }
-}
-
-ISR(TIMER0_COMPA_vect) {
-    if (timer0OverflowCounter == 1) {
-        PORTB &= ~(1 << ServoPWM);
-    }
-    switch (machineState) {
-        case setupSystem:
-            break;
-        case startWipe:
-            break;
-        case endWipe:
-            break;
-        case editMotorTime:
-            break;
-        case editDtTime:
-            break;
-        case waitingButtonStart:
-            break;
-        case waitingButtonRelease:
-            break;
-        case motorRun:
-            PORTB |= (1 << EscPWM);
-            break;
-        case freeFlight:
-            break;
-        case triggerDT:
-            break;
-        case waitingForRestart:
-            break;
-    }
-}
-
-void slowFlash(int pwmCycleCount) {
-    if (pwmCycleCount / cyclesPerSecond % 2 == 0) {
-        TurnOnLed;
-    } else {
-        TurnOffLed;
-    }
-}
-
-void fastFlash(int pwmCycleCount) {
-    if ((pwmCycleCount / (cyclesPerSecond / 5)) % 2 == 0) {
-        TurnOnLed;
-    } else {
-        TurnOffLed;
-    }
-}
-
-void doubleFlash(int pwmCycleCount) {
-    int pulseIndex = (pwmCycleCount / (cyclesPerSecond / 5)) % 10;
-    if (pulseIndex == 0 || pulseIndex == 3) {
-        TurnOnLed;
-    } else {
-        TurnOffLed;
-    }
-}
-
-void trippleFlash(int pwmCycleCount) {
-    int pulseIndex = (pwmCycleCount / (cyclesPerSecond / 5)) % 10;
-    if (pulseIndex == 0 || pulseIndex == 2 || pulseIndex == 4) {
-        TurnOnLed;
-    } else {
-        TurnOffLed;
-    }
-}
-
-ISR(TIMER0_COMPB_vect) {
-    if (timer0OverflowCounter == 1) {
-        PORTB &= ~(1 << EscPWM);
-    }
     pwmCycleCount++;
     buttonCountSinceLastChange++;
-    int pwmCyclesPerWipeStep = 100;
-    int pwmCyclesPerEscStep = 100;
-    int pwmCyclesFreeFlight = 1000;
+    int pwmCyclesPerWipeStep = 1000;
+    int pwmCyclesPerEscStep = 1000;
+    int pwmCyclesFreeFlight = 10000;
     switch (machineState) {
         case setupSystem:
             break;
@@ -236,19 +199,17 @@ ISR(TIMER0_COMPB_vect) {
             fastFlash(pwmCycleCount);
             break;
         case motorRun:
-            PORTB &= ~(1 << EscPWM);
             if (pwmCycleCount > pwmCyclesPerEscStep) {
-                // for now we are using the difference between OCR0A and OCR0B to produce the ESC PWM
-                if (OCR0B >= OCR0A + MaxOCR0A) {
+                if (OCR0B >= MaxOCR0A) {
                     TurnOffLed;
                     if (pwmCycleCount > 1000) {
-                        OCR0B = OCR0A + MinOCR0A;
+                        OCR0B = MinOCR0A;
                         machineState = freeFlight;
                         pwmCycleCount = 0;
                     }
                 } else {
                     TurnOnLed;
-                    OCR0B = (OCR0B < OCR0A + MinOCR0A) ? OCR0B + 1 : OCR0A + MaxOCR0A;
+                    OCR0B = (OCR0B < MaxOCR0A) ? OCR0B + 1 : MaxOCR0A;
                 }
             }
             break;
@@ -264,6 +225,18 @@ ISR(TIMER0_COMPB_vect) {
             break;
         case waitingForRestart:
             break;
+    }
+}
+
+ISR(TIMER0_COMPA_vect) {
+    if (timer0OverflowCounter == 1) {
+        PORTB &= ~(1 << ServoPWM);
+    }
+}
+
+ISR(TIMER0_COMPB_vect) {
+    if (timer0OverflowCounter == 1) {
+        PORTB &= ~(1 << EscPWM);
     }
 }
 
