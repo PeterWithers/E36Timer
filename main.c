@@ -11,7 +11,7 @@
 
 #include <avr/io.h>
 #include <avr/interrupt.h>
-//#include <avr/eeprom.h>
+#include <avr/eeprom.h>
 
 #define IndicatorLed     PB1
 #define ServoPWM         PB0
@@ -56,10 +56,10 @@ volatile const int cyclesPerSecond = 50;
 
 const int motorSeconds[] = {2, 4, 5, 7, 10, 15};
 const int motorSecondsSize = 6;
-volatile int motorSecondsIndex = 0;
+volatile uint8_t motorSecondsIndex = 0;
 const int dethermalSeconds[] = {0, 5, 30, 60, 90, 120, 180, 240, 300};
 const int dethermalSecondsSize = 9;
-volatile int dethermalSecondsIndex = 0;
+volatile uint8_t dethermalSecondsIndex = 0;
 volatile int timer0OverflowCounter = 0;
 const int waitingEscValue = ((MaxOCR0A - MinOCR0A) / 3) + MinOCR0A;
 
@@ -95,6 +95,17 @@ void trippleFlash(int pwmCycleCount) {
     } else {
         TurnOffLed;
     }
+}
+
+void saveSettings() {
+    // using update not write to preserve eeprom life
+    eeprom_update_byte((uint8_t*) 1, motorSecondsIndex);
+    eeprom_update_byte((uint8_t*) 2, dethermalSecondsIndex);
+}
+
+void loadSavedSettings() {
+    motorSecondsIndex = eeprom_read_byte((uint8_t*) 1);
+    dethermalSecondsIndex = eeprom_read_byte((uint8_t*) 2);
 }
 
 ISR(PCINT0_vect) {
@@ -156,6 +167,7 @@ ISR(TIMER0_OVF_vect) {
                 if (pwmCycleCount > editingTimeoutSeconds * cyclesPerSecond) {
                     machineState = waitingButtonStart;
                     pwmCycleCount = 0;
+                    saveSettings();
                 }
                 trippleFlash(pwmCycleCount);
                 break;
@@ -245,15 +257,6 @@ ISR(TIMER0_COMPB_vect) {
     if (timer0OverflowCounter == 1) {
         PORTB &= ~(1 << EscPWM);
     }
-}
-
-void loadSavedSettings() {
-    // use update not write to preserve eeprom life
-    //    uint8_t motorRunAddress = 1;
-    //    uint8_t dtTimeAddress = 2;
-    //    eeprom_update_byte(&motorRunAddress, 10);
-    //    uint8_t z = eeprom_read_byte(&motorRunAddress);
-    //http://www.atmel.com/webdoc/AVRLibcReferenceManual/group__avr__eeprom.html
 }
 
 void setupRegisters() {
