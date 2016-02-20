@@ -23,9 +23,6 @@
 #define MaxOCR0A 140
 #define MinOCR0A 31
 
-#define DethermaliseHold OCR0A = MinOCR0A;
-#define DethermaliseRelease OCR0A = MaxOCR0A;
-
 #define ButtonIsDown ((PINB & (1 << ButtonPin)) == 0)
 
 #define TurnOnLed PORTB |= (1 << IndicatorLed);
@@ -118,13 +115,13 @@ ISR(TIMER0_OVF_vect) {
             case setupSystem:
                 break;
             case startWipe:
-                OCR0A = (OCR0A < MaxOCR0A) ? OCR0A + 1 : MaxOCR0A;
+                OCR0A = (OCR0A + 2 < MaxOCR0A) ? OCR0A + 2 : MaxOCR0A;
                 if (OCR0A >= MaxOCR0A) {
                     machineState = endWipe;
                 }
                 break;
             case endWipe:
-                OCR0A = (OCR0A > MinOCR0A) ? OCR0A - 1 : MinOCR0A;
+                OCR0A = (OCR0A - 2 > MinOCR0A) ? OCR0A - 2 : MinOCR0A;
                 if (OCR0A <= MinOCR0A) {
                     machineState = editMotorTime;
                     DisplayMotorTime;
@@ -159,19 +156,21 @@ ISR(TIMER0_OVF_vect) {
                 }
                 if (pwmCycleCount > editingTimeoutSeconds * cyclesPerSecond) {
                     machineState = waitingButtonStart;
-                    DethermaliseHold;
                     pwmCycleCount = 0;
                 }
                 trippleFlash(pwmCycleCount);
                 break;
             case waitingButtonStart:
-                if (buttonCountSinceLastChange > buttonDebounceValue) {
-                    if (ButtonIsDown) {
-                        machineState = waitingButtonRelease;
+                OCR0A = (OCR0A - 2 > MinOCR0A) ? OCR0A - 2 : MinOCR0A;
+                if (OCR0A <= MinOCR0A) {
+                    if (buttonCountSinceLastChange > buttonDebounceValue) {
+                        if (ButtonIsDown) {
+                            machineState = waitingButtonRelease;
+                        }
+                        buttonCountSinceLastChange = 0;
                     }
-                    buttonCountSinceLastChange = 0;
+                    slowFlash(pwmCycleCount);
                 }
-                slowFlash(pwmCycleCount);
                 break;
             case waitingButtonRelease:
                 if (buttonCountSinceLastChange > buttonDebounceValue) {
@@ -202,8 +201,10 @@ ISR(TIMER0_OVF_vect) {
                 }
                 break;
             case triggerDT:
-                DethermaliseRelease;
-                machineState = waitingForRestart;
+                OCR0A = (OCR0A + 2 < MaxOCR0A) ? OCR0A + 2 : MaxOCR0A;
+                if (OCR0A >= MaxOCR0A) {
+                    machineState = waitingForRestart;
+                }
                 break;
             case waitingForRestart:
                 if (buttonCountSinceLastChange > buttonDebounceValue) {
