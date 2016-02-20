@@ -112,30 +112,23 @@ ISR(TIMER0_OVF_vect) {
     if (timer0OverflowCounter == 3) {
         pwmCycleCount++;
         buttonCountSinceLastChange++;
-        int pwmCyclesPerWipeStep = 2;
-        int pwmCyclesPerEscStep = 1000;
-        int pwmCyclesFreeFlight = 10000;
+        int pwmCyclesFreeFlight = 100;
+        int pwmCyclesMotorRun = 100;
         switch (machineState) {
             case setupSystem:
                 break;
             case startWipe:
-                if (pwmCycleCount > pwmCyclesPerWipeStep) {
                     OCR0A = (OCR0A < MaxOCR0A) ? OCR0A + 1 : MaxOCR0A;
                     if (OCR0A >= MaxOCR0A) {
                         machineState = endWipe;
                     }
-                    pwmCycleCount = 0;
-                }
                 break;
             case endWipe:
-                if (pwmCycleCount > pwmCyclesPerWipeStep) {
                     OCR0A = (OCR0A > MinOCR0A) ? OCR0A - 1 : MinOCR0A;
                     if (OCR0A <= MinOCR0A) {
                         machineState = editMotorTime;
                         DisplayMotorTime;
                     }
-                    pwmCycleCount = 0;
-                }
                 break;
             case editMotorTime:
                 if (buttonCountSinceLastChange > buttonDebounceValue) {
@@ -190,11 +183,9 @@ ISR(TIMER0_OVF_vect) {
                 fastFlash(pwmCycleCount);
                 break;
             case motorRun:
-                if (pwmCycleCount > pwmCyclesPerEscStep) {
                     if (OCR0B >= MaxOCR0A) {
                         TurnOffLed;
-                        if (pwmCycleCount > 1000) {
-                            OCR0B = MinOCR0A;
+                        if (pwmCycleCount > pwmCyclesMotorRun) {
                             machineState = freeFlight;
                             pwmCycleCount = 0;
                         }
@@ -202,9 +193,9 @@ ISR(TIMER0_OVF_vect) {
                         TurnOnLed;
                         OCR0B = (OCR0B < MaxOCR0A) ? OCR0B + 1 : MaxOCR0A;
                     }
-                }
                 break;
             case freeFlight:
+                OCR0B = (OCR0B > MinOCR0A) ? OCR0B - 1 : MinOCR0A;
                 if (pwmCycleCount >= pwmCyclesFreeFlight) {
                     machineState = triggerDT;
                     pwmCycleCount = 0;
@@ -215,6 +206,13 @@ ISR(TIMER0_OVF_vect) {
                 machineState = waitingForRestart;
                 break;
             case waitingForRestart:
+                if (buttonCountSinceLastChange > buttonDebounceValue) {
+                    if (ButtonIsDown) {
+                        machineState = waitingButtonStart;
+                    }
+                    buttonCountSinceLastChange = 0;
+                }
+                fastFlash(pwmCycleCount);
                 break;
         }
     }
