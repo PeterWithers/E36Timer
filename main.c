@@ -61,6 +61,7 @@ const int dethermalIncrements[] = {0, 5, 30, 60, 90, 120, 180, 240, 300};
 const int dethermalIncrementSize = 9;
 volatile int dethermalIncrementValue = 3;
 volatile int timer0OverflowCounter = 0;
+const int waitingEscValue = ((MaxOCR0A - MinOCR0A) / 3) + MinOCR0A;
 
 void slowFlash(int pwmCycleCount) {
     if (pwmCycleCount / cyclesPerSecond % 2 == 0) {
@@ -173,6 +174,7 @@ ISR(TIMER0_OVF_vect) {
                 }
                 break;
             case waitingButtonRelease:
+                OCR0B = (OCR0B < waitingEscValue) ? OCR0B + 1 : waitingEscValue;
                 if (buttonCountSinceLastChange > buttonDebounceValue) {
                     if (!ButtonIsDown) {
                         machineState = motorRun;
@@ -191,6 +193,13 @@ ISR(TIMER0_OVF_vect) {
                 } else {
                     TurnOnLed;
                     OCR0B = (OCR0B < MaxOCR0A) ? OCR0B + 1 : MaxOCR0A;
+                }
+                // allow restarts starts
+                if (buttonCountSinceLastChange > buttonDebounceValue) {
+                    if (ButtonIsDown) {
+                        machineState = waitingButtonRelease;
+                    }
+                    buttonCountSinceLastChange = 0;
                 }
                 break;
             case freeFlight:
