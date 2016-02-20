@@ -20,8 +20,8 @@
 
 //#define MaxOCR0A 125
 //#define MinOCR0A 60
-#define MaxOCR0A 245
-#define MinOCR0A 118
+#define MaxOCR0A 254
+#define MinOCR0A 128
 
 #define DethermaliseHold OCR0A = MinOCR0A;
 #define DethermaliseRelease OCR0A = MaxOCR0A;
@@ -54,7 +54,7 @@ volatile int buttonCountSinceLastChange = 0;
 volatile int pwmCycleCount = 0;
 
 volatile const int editingTimeoutSeconds = 10;
-volatile const int cyclesPerSecond = 500;
+volatile const int cyclesPerSecond = 50;
 
 const int motorIncrements[] = {5, 10, 15};
 const int motorIncrementSize = 3;
@@ -144,87 +144,89 @@ ISR(PCINT0_vect) {
 }
 
 ISR(TIMER0_OVF_vect) {
-    timer0OverflowCounter = (timer0OverflowCounter > 8) ? 0 : timer0OverflowCounter + 1;
+    timer0OverflowCounter = (timer0OverflowCounter > 3) ? 0 : timer0OverflowCounter + 1;
     if (timer0OverflowCounter == 1) {
         PORTB |= (1 << ServoPWM);
         PORTB |= (1 << EscPWM);
     }
-    pwmCycleCount++;
-    buttonCountSinceLastChange++;
-    int pwmCyclesPerWipeStep = 1000;
-    int pwmCyclesPerEscStep = 1000;
-    int pwmCyclesFreeFlight = 10000;
-    switch (machineState) {
-        case setupSystem:
-            break;
-        case startWipe:
-            if (pwmCycleCount > pwmCyclesPerWipeStep) {
-                OCR0A = (OCR0A < MaxOCR0A) ? OCR0A + 1 : MaxOCR0A;
-                if (OCR0A >= MaxOCR0A) {
-                    machineState = endWipe;
-                    pwmCycleCount = 0;
-                }
-            }
-            break;
-        case endWipe:
-            if (pwmCycleCount > pwmCyclesPerWipeStep) {
-                OCR0A = (OCR0A > MinOCR0A) ? OCR0A - 1 : MinOCR0A;
-                if (OCR0A <= MinOCR0A) {
-                    machineState = editMotorTime;
-                    DisplayMotorTime;
-                    pwmCycleCount = 0;
-                }
-            }
-            break;
-        case editMotorTime:
-            if (pwmCycleCount > editingTimeoutSeconds * cyclesPerSecond) {
-                machineState = editDtTime;
-                DisplayDethermalTime;
-                pwmCycleCount = 0;
-            }
-            doubleFlash(pwmCycleCount);
-            break;
-        case editDtTime:
-            if (pwmCycleCount > editingTimeoutSeconds * cyclesPerSecond) {
-                machineState = waitingButtonStart;
-                DethermaliseHold;
-                pwmCycleCount = 0;
-            }
-            trippleFlash(pwmCycleCount);
-            break;
-        case waitingButtonStart:
-            slowFlash(pwmCycleCount);
-            break;
-        case waitingButtonRelease:
-            fastFlash(pwmCycleCount);
-            break;
-        case motorRun:
-            if (pwmCycleCount > pwmCyclesPerEscStep) {
-                if (OCR0B >= MaxOCR0A) {
-                    TurnOffLed;
-                    if (pwmCycleCount > 1000) {
-                        OCR0B = MinOCR0A;
-                        machineState = freeFlight;
+    if (timer0OverflowCounter == 3) {
+        pwmCycleCount++;
+        buttonCountSinceLastChange++;
+        int pwmCyclesPerWipeStep = 1000;
+        int pwmCyclesPerEscStep = 1000;
+        int pwmCyclesFreeFlight = 10000;
+        switch (machineState) {
+            case setupSystem:
+                break;
+            case startWipe:
+                if (pwmCycleCount > pwmCyclesPerWipeStep) {
+                    OCR0A = (OCR0A < MaxOCR0A) ? OCR0A + 1 : MaxOCR0A;
+                    if (OCR0A >= MaxOCR0A) {
+                        machineState = endWipe;
                         pwmCycleCount = 0;
                     }
-                } else {
-                    TurnOnLed;
-                    OCR0B = (OCR0B < MaxOCR0A) ? OCR0B + 1 : MaxOCR0A;
                 }
-            }
-            break;
-        case freeFlight:
-            if (pwmCycleCount >= pwmCyclesFreeFlight) {
-                machineState = triggerDT;
-                pwmCycleCount = 0;
-            }
-            break;
-        case triggerDT:
-            DethermaliseRelease;
-            machineState = waitingForRestart;
-            break;
-        case waitingForRestart:
-            break;
+                break;
+            case endWipe:
+                if (pwmCycleCount > pwmCyclesPerWipeStep) {
+                    OCR0A = (OCR0A > MinOCR0A) ? OCR0A - 1 : MinOCR0A;
+                    if (OCR0A <= MinOCR0A) {
+                        machineState = editMotorTime;
+                        DisplayMotorTime;
+                        pwmCycleCount = 0;
+                    }
+                }
+                break;
+            case editMotorTime:
+                if (pwmCycleCount > editingTimeoutSeconds * cyclesPerSecond) {
+                    machineState = editDtTime;
+                    DisplayDethermalTime;
+                    pwmCycleCount = 0;
+                }
+                doubleFlash(pwmCycleCount);
+                break;
+            case editDtTime:
+                if (pwmCycleCount > editingTimeoutSeconds * cyclesPerSecond) {
+                    machineState = waitingButtonStart;
+                    DethermaliseHold;
+                    pwmCycleCount = 0;
+                }
+                trippleFlash(pwmCycleCount);
+                break;
+            case waitingButtonStart:
+                slowFlash(pwmCycleCount);
+                break;
+            case waitingButtonRelease:
+                fastFlash(pwmCycleCount);
+                break;
+            case motorRun:
+                if (pwmCycleCount > pwmCyclesPerEscStep) {
+                    if (OCR0B >= MaxOCR0A) {
+                        TurnOffLed;
+                        if (pwmCycleCount > 1000) {
+                            OCR0B = MinOCR0A;
+                            machineState = freeFlight;
+                            pwmCycleCount = 0;
+                        }
+                    } else {
+                        TurnOnLed;
+                        OCR0B = (OCR0B < MaxOCR0A) ? OCR0B + 1 : MaxOCR0A;
+                    }
+                }
+                break;
+            case freeFlight:
+                if (pwmCycleCount >= pwmCyclesFreeFlight) {
+                    machineState = triggerDT;
+                    pwmCycleCount = 0;
+                }
+                break;
+            case triggerDT:
+                DethermaliseRelease;
+                machineState = waitingForRestart;
+                break;
+            case waitingForRestart:
+                break;
+        }
     }
 }
 
@@ -242,10 +244,10 @@ ISR(TIMER0_COMPB_vect) {
 
 void loadSavedSettings() {
     // use update not write to preserve eeprom life
-//    uint8_t motorRunAddress = 1;
-//    uint8_t dtTimeAddress = 2;
-//    eeprom_update_byte(&motorRunAddress, 10);
-//    uint8_t z = eeprom_read_byte(&motorRunAddress);
+    //    uint8_t motorRunAddress = 1;
+    //    uint8_t dtTimeAddress = 2;
+    //    eeprom_update_byte(&motorRunAddress, 10);
+    //    uint8_t z = eeprom_read_byte(&motorRunAddress);
     //http://www.atmel.com/webdoc/AVRLibcReferenceManual/group__avr__eeprom.html
 }
 
@@ -266,12 +268,13 @@ void setupRegisters() {
     // set Timer/Counter Control Register A
     // with settings to clear OC0A/OC0B on Compare Match, set OC0A/OC0B at BOTTOM (non-inverting mode)
     //TCCR0A = 1 << COM0A1 | 1 << WGM00; // set PWM output to PB0
-    TCCR0A = 1 << WGM00;
+    //TCCR0A = 1 << WGM00;
+    TCCR0A = 0;
     OCR0A = MinOCR0A; // set the servo to the minimum for now
     OCR0B = MinOCR0A; // set the ESC to the minimum for now
-    //    TCCR0B |= (1 << CS00) | (1 << CS02); // start timer0 31.5hz
-    //    TCCR0B |= (1 << CS02); // start timer0 126.8hz : 10hz
-    TCCR0B |= (1 << CS00) | (1 << CS01); // start timer0 126.8hz : 10hz
+    //   TCCR0B |= (1 << CS00) | (1 << CS02); // start timer0 15.7hz
+    TCCR0B |= (1 << CS02); // start timer0 126.8hz : 62.8hz
+    //    TCCR0B |= (1 << CS00) | (1 << CS01); // start timer0 126.8hz : 10hz : 100hz
 }
 
 //void loop() {
