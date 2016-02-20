@@ -62,6 +62,7 @@ const int dethermalSecondsSize = 9;
 volatile uint8_t dethermalSecondsIndex = 0;
 volatile int timer0OverflowCounter = 0;
 const int waitingEscValue = ((MaxOCR0A - MinOCR0A) / 3) + MinOCR0A;
+volatile int buttonHasBeenUp = 0;
 
 void slowFlash(int pwmCycleCount) {
     if (pwmCycleCount / cyclesPerSecond % 2 == 0) {
@@ -106,6 +107,8 @@ void saveSettings() {
 void loadSavedSettings() {
     motorSecondsIndex = eeprom_read_byte((uint8_t*) 1);
     dethermalSecondsIndex = eeprom_read_byte((uint8_t*) 2);
+    motorSecondsIndex = (motorSecondsIndex < motorSecondsSize) ? motorSecondsIndex : motorSecondsSize - 1;
+    dethermalSecondsIndex = (dethermalSecondsIndex < dethermalSecondsSize) ? dethermalSecondsIndex : dethermalSecondsSize - 1;
 }
 
 ISR(PCINT0_vect) {
@@ -140,10 +143,15 @@ ISR(TIMER0_OVF_vect) {
             case editMotorTime:
                 if (buttonCountSinceLastChange > buttonDebounceValue) {
                     if (ButtonIsDown) {
-                        // adjust motorSeconds
-                        motorSecondsIndex = (motorSecondsIndex < motorSecondsSize - 1) ? motorSecondsIndex + 1 : 0;
-                        DisplayMotorTime;
-                        pwmCycleCount = 0;
+                        if (buttonHasBeenUp == 1) {
+                            // adjust motorSeconds
+                            motorSecondsIndex = (motorSecondsIndex < motorSecondsSize - 1) ? motorSecondsIndex + 1 : 0;
+                            DisplayMotorTime;
+                            pwmCycleCount = 0;
+                            buttonHasBeenUp = 0;
+                        }
+                    } else {
+                        buttonHasBeenUp = 1;
                     }
                     buttonCountSinceLastChange = 0;
                 }
@@ -157,10 +165,15 @@ ISR(TIMER0_OVF_vect) {
             case editDtTime:
                 if (buttonCountSinceLastChange > buttonDebounceValue) {
                     if (ButtonIsDown) {
-                        // adjust dethermalSeconds
-                        dethermalSecondsIndex = (dethermalSecondsIndex < dethermalSecondsSize - 1) ? dethermalSecondsIndex + 1 : 0;
-                        DisplayDethermalTime;
-                        pwmCycleCount = 0;
+                        if (buttonHasBeenUp == 1) {
+                            // adjust dethermalSeconds
+                            dethermalSecondsIndex = (dethermalSecondsIndex < dethermalSecondsSize - 1) ? dethermalSecondsIndex + 1 : 0;
+                            DisplayDethermalTime;
+                            pwmCycleCount = 0;
+                            buttonHasBeenUp = 0;
+                        }
+                    } else {
+                        buttonHasBeenUp = 1;
                     }
                     buttonCountSinceLastChange = 0;
                 }
@@ -176,7 +189,12 @@ ISR(TIMER0_OVF_vect) {
                 if (OCR0A <= MinOCR0A) {
                     if (buttonCountSinceLastChange > buttonDebounceValue) {
                         if (ButtonIsDown) {
-                            machineState = waitingButtonRelease;
+                            if (buttonHasBeenUp == 1) {
+                                machineState = waitingButtonRelease;
+                                buttonHasBeenUp = 0;
+                            }
+                        } else {
+                            buttonHasBeenUp = 1;
                         }
                         buttonCountSinceLastChange = 0;
                     }
@@ -187,8 +205,13 @@ ISR(TIMER0_OVF_vect) {
                 OCR0B = (OCR0B < waitingEscValue) ? OCR0B + 1 : waitingEscValue;
                 if (buttonCountSinceLastChange > buttonDebounceValue) {
                     if (!ButtonIsDown) {
-                        machineState = motorRun;
-                        pwmCycleCount = 0;
+                        if (buttonHasBeenUp == 0) {
+                            machineState = motorRun;
+                            pwmCycleCount = 0;
+                            buttonHasBeenUp = 1;
+                        }
+                    } else {
+                        buttonHasBeenUp = 0;
                     }
                     buttonCountSinceLastChange = 0;
                 }
@@ -215,8 +238,13 @@ ISR(TIMER0_OVF_vect) {
                     // allow restarts starts
                     if (buttonCountSinceLastChange > buttonDebounceValue) {
                         if (ButtonIsDown) {
-                            machineState = waitingButtonRelease;
-                            pwmCycleCount = 0;
+                            if (buttonHasBeenUp == 1) {
+                                machineState = waitingButtonRelease;
+                                pwmCycleCount = 0;
+                                buttonHasBeenUp = 0;
+                            }
+                        } else {
+                            buttonHasBeenUp = 1;
                         }
                         buttonCountSinceLastChange = 0;
                     }
@@ -237,7 +265,12 @@ ISR(TIMER0_OVF_vect) {
             case waitingForRestart:
                 if (buttonCountSinceLastChange > buttonDebounceValue) {
                     if (ButtonIsDown) {
-                        machineState = waitingButtonStart;
+                        if (buttonHasBeenUp == 1) {
+                            machineState = waitingButtonStart;
+                            buttonHasBeenUp = 0;
+                        }
+                    } else {
+                        buttonHasBeenUp = 1;
                     }
                     buttonCountSinceLastChange = 0;
                 }
