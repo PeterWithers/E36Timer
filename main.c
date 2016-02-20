@@ -239,9 +239,11 @@ ISR(TIMER0_OVF_vect) {
                     if (buttonCountSinceLastChange > buttonDebounceValue) {
                         if (ButtonIsDown) {
                             if (buttonHasBeenUp == 1) {
-                                machineState = waitingButtonRelease;
+                                machineState = waitingButtonStart;
                                 pwmCycleCount = 0;
                                 buttonHasBeenUp = 0;
+                                // power down the motor in the case of restarts
+                                OCR0B = MinOCR0A;
                             }
                         } else {
                             buttonHasBeenUp = 1;
