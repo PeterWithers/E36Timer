@@ -20,8 +20,8 @@
 
 //#define MaxOCR0A 125
 //#define MinOCR0A 60
-#define MaxOCR0A 254
-#define MinOCR0A 128
+#define MaxOCR0A 128
+#define MinOCR0A 64
 
 #define DethermaliseHold OCR0A = MinOCR0A;
 #define DethermaliseRelease OCR0A = MaxOCR0A;
