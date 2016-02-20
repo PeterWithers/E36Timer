@@ -152,7 +152,7 @@ ISR(TIMER0_OVF_vect) {
     if (timer0OverflowCounter == 3) {
         pwmCycleCount++;
         buttonCountSinceLastChange++;
-        int pwmCyclesPerWipeStep = 1000;
+        int pwmCyclesPerWipeStep = 2;
         int pwmCyclesPerEscStep = 1000;
         int pwmCyclesFreeFlight = 10000;
         switch (machineState) {
@@ -163,8 +163,8 @@ ISR(TIMER0_OVF_vect) {
                     OCR0A = (OCR0A < MaxOCR0A) ? OCR0A + 1 : MaxOCR0A;
                     if (OCR0A >= MaxOCR0A) {
                         machineState = endWipe;
-                        pwmCycleCount = 0;
                     }
+                    pwmCycleCount = 0;
                 }
                 break;
             case endWipe:
@@ -173,8 +173,8 @@ ISR(TIMER0_OVF_vect) {
                     if (OCR0A <= MinOCR0A) {
                         machineState = editMotorTime;
                         DisplayMotorTime;
-                        pwmCycleCount = 0;
                     }
+                    pwmCycleCount = 0;
                 }
                 break;
             case editMotorTime:
