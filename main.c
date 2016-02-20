@@ -20,13 +20,13 @@
 
 //#define MaxOCR0A 125
 //#define MinOCR0A 60
-#define MaxOCR0A 128
-#define MinOCR0A 64
+#define MaxOCR0A 140
+#define MinOCR0A 31
 
 #define DethermaliseHold OCR0A = MinOCR0A;
 #define DethermaliseRelease OCR0A = MaxOCR0A;
 
-#define ButtonIsDown !(PINB & (1 << ButtonPin))
+#define ButtonIsDown ((PINB & (1 << ButtonPin)) == 0)
 
 #define TurnOnLed PORTB |= (1 << IndicatorLed);
 #define TurnOffLed PORTB &= ~(1 << IndicatorLed);
@@ -118,17 +118,17 @@ ISR(TIMER0_OVF_vect) {
             case setupSystem:
                 break;
             case startWipe:
-                    OCR0A = (OCR0A < MaxOCR0A) ? OCR0A + 1 : MaxOCR0A;
-                    if (OCR0A >= MaxOCR0A) {
-                        machineState = endWipe;
-                    }
+                OCR0A = (OCR0A < MaxOCR0A) ? OCR0A + 1 : MaxOCR0A;
+                if (OCR0A >= MaxOCR0A) {
+                    machineState = endWipe;
+                }
                 break;
             case endWipe:
-                    OCR0A = (OCR0A > MinOCR0A) ? OCR0A - 1 : MinOCR0A;
-                    if (OCR0A <= MinOCR0A) {
-                        machineState = editMotorTime;
-                        DisplayMotorTime;
-                    }
+                OCR0A = (OCR0A > MinOCR0A) ? OCR0A - 1 : MinOCR0A;
+                if (OCR0A <= MinOCR0A) {
+                    machineState = editMotorTime;
+                    DisplayMotorTime;
+                }
                 break;
             case editMotorTime:
                 if (buttonCountSinceLastChange > buttonDebounceValue) {
@@ -183,16 +183,16 @@ ISR(TIMER0_OVF_vect) {
                 fastFlash(pwmCycleCount);
                 break;
             case motorRun:
-                    if (OCR0B >= MaxOCR0A) {
-                        TurnOffLed;
-                        if (pwmCycleCount > pwmCyclesMotorRun) {
-                            machineState = freeFlight;
-                            pwmCycleCount = 0;
-                        }
-                    } else {
-                        TurnOnLed;
-                        OCR0B = (OCR0B < MaxOCR0A) ? OCR0B + 1 : MaxOCR0A;
+                if (OCR0B >= MaxOCR0A) {
+                    TurnOffLed;
+                    if (pwmCycleCount > pwmCyclesMotorRun) {
+                        machineState = freeFlight;
+                        pwmCycleCount = 0;
                     }
+                } else {
+                    TurnOnLed;
+                    OCR0B = (OCR0B < MaxOCR0A) ? OCR0B + 1 : MaxOCR0A;
+                }
                 break;
             case freeFlight:
                 OCR0B = (OCR0B > MinOCR0A) ? OCR0B - 1 : MinOCR0A;
