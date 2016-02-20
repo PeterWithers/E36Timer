@@ -51,6 +51,7 @@ enum MachineState {
 volatile enum MachineState machineState = setupSystem;
 
 volatile int buttonCountSinceLastChange = 0;
+volatile int buttonDebounceValue = 3;
 volatile int pwmCycleCount = 0;
 
 volatile const int editingTimeoutSeconds = 10;
@@ -99,48 +100,7 @@ void trippleFlash(int pwmCycleCount) {
 }
 
 ISR(PCINT0_vect) {
-    if (buttonCountSinceLastChange > 10) {
-        switch (machineState) {
-            case editMotorTime:
-                if (ButtonIsDown) {
-                    // adjust motorSeconds
-                    motorIncrementValue = (motorIncrementValue < motorIncrementSize - 1) ? motorIncrementValue + 1 : 0;
-                    DisplayMotorTime;
-                    pwmCycleCount = 0;
-                }
-                break;
-            case editDtTime:
-                if (ButtonIsDown) {
-                    // adjust dethermalSeconds
-                    dethermalIncrementValue = (dethermalIncrementValue < dethermalIncrementSize - 1) ? dethermalIncrementValue + 1 : 0;
-                    DisplayDethermalTime;
-                    pwmCycleCount = 0;
-                }
-                break;
-            case waitingButtonStart:
-                if (ButtonIsDown) {
-                    machineState = waitingButtonRelease;
-                }
-                break;
-            case waitingButtonRelease:
-                if (!ButtonIsDown) {
-                    machineState = motorRun;
-                } else {
-                    machineState = waitingButtonRelease;
-                }
-                break;
-            case motorRun:
-                break;
-            case freeFlight:
-                break;
-            case triggerDT:
-                break;
-            case waitingForRestart:
-                break;
-            default:
-                break;
-        }
-    }
+    buttonCountSinceLastChange = 0;
 }
 
 ISR(TIMER0_OVF_vect) {
@@ -178,6 +138,15 @@ ISR(TIMER0_OVF_vect) {
                 }
                 break;
             case editMotorTime:
+                if (buttonCountSinceLastChange > buttonDebounceValue) {
+                    if (ButtonIsDown) {
+                        // adjust motorSeconds
+                        motorIncrementValue = (motorIncrementValue < motorIncrementSize - 1) ? motorIncrementValue + 1 : 0;
+                        DisplayMotorTime;
+                        pwmCycleCount = 0;
+                    }
+                    buttonCountSinceLastChange = 0;
+                }
                 if (pwmCycleCount > editingTimeoutSeconds * cyclesPerSecond) {
                     machineState = editDtTime;
                     DisplayDethermalTime;
@@ -186,6 +155,15 @@ ISR(TIMER0_OVF_vect) {
                 doubleFlash(pwmCycleCount);
                 break;
             case editDtTime:
+                if (buttonCountSinceLastChange > buttonDebounceValue) {
+                    if (ButtonIsDown) {
+                        // adjust dethermalSeconds
+                        dethermalIncrementValue = (dethermalIncrementValue < dethermalIncrementSize - 1) ? dethermalIncrementValue + 1 : 0;
+                        DisplayDethermalTime;
+                        pwmCycleCount = 0;
+                    }
+                    buttonCountSinceLastChange = 0;
+                }
                 if (pwmCycleCount > editingTimeoutSeconds * cyclesPerSecond) {
                     machineState = waitingButtonStart;
                     DethermaliseHold;
@@ -194,9 +172,21 @@ ISR(TIMER0_OVF_vect) {
                 trippleFlash(pwmCycleCount);
                 break;
             case waitingButtonStart:
+                if (buttonCountSinceLastChange > buttonDebounceValue) {
+                    if (ButtonIsDown) {
+                        machineState = waitingButtonRelease;
+                    }
+                    buttonCountSinceLastChange = 0;
+                }
                 slowFlash(pwmCycleCount);
                 break;
             case waitingButtonRelease:
+                if (buttonCountSinceLastChange > buttonDebounceValue) {
+                    if (!ButtonIsDown) {
+                        machineState = motorRun;
+                    }
+                    buttonCountSinceLastChange = 0;
+                }
                 fastFlash(pwmCycleCount);
                 break;
             case motorRun:
