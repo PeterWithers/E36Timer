@@ -28,9 +28,9 @@ void draw(void) {
     u8g.setFont(u8g_font_unifont);
     u8g.drawStr(0, 20, "TimerTestingTool");
     String milliString = String(millis(), DEC);
-    String secondsString = String(millis() / 100 % 60, DEC);
-    String minutesString = String(millis() / 100 / 60 % 60, DEC);
-    String hoursString = String(millis() / 100 / 60 / 60, DEC);
+    String secondsString = String(millis() / 1000 % 60, DEC);
+    String minutesString = String(millis() / 1000 / 60 % 60, DEC);
+    String hoursString = String(millis() / 1000 / 60 / 60, DEC);
     if (secondsString.length() < 2) {
         secondsString = "0" + secondsString;
     }
