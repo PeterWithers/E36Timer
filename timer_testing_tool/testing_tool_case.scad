@@ -21,6 +21,7 @@ gapBetweenBoardEdgeAndLcd = 5;
 usbWidth = 8;
 usbHeight = 4;
 
+translate([0,5,5]) %cube([atmegaBoardLength, 30, lcdBoardWidth+5], center = true);
 cube([atmegaBoardLength, atmegaBoardWidth, 3], center = true);
 translate([-5,18,5]) cube([lcdBoardWidth, 3, lcdBoardWidth], center = true);
 translate([-5,20,4]) cube([lcdBoardWidth, 5, lcdDisplayHeight], center = true);
