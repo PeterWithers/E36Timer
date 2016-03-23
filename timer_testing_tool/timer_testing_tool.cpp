@@ -10,10 +10,33 @@
  */
 
 #include <U8glib.h>
+#include <avr/interrupt.h>
 
 U8GLIB_SSD1306_128X64 u8g(U8G_I2C_OPT_NONE | U8G_I2C_OPT_DEV_0); // I2C / TWI
 
+#define PwmInput1 PB5
+#define PwmInput2 PB3
+
+int changeCounter = 0;
+
+ISR(INT0_vect) {
+    changeCounter++;
+}
+
 void setup() {
+    // set PwmInput1 and PwmInput2 to inputs
+    DDRD &= ~(1 << PwmInput1);
+    DDRD &= ~(1 << PwmInput2);
+//    PORTD |= (1 << PwmInput1); // turn On the Pull-up    
+
+    // start the timer1
+    TCCR1B |= (1 << CS12); 
+
+    // enable pin interrupts
+    PCMSK0 |= (1 << PCINT3);
+    PCMSK0 |= (1 << PCINT5);
+
+    sei();
 }
 
 void loop() {
