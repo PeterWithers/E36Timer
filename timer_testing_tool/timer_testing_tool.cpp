@@ -14,29 +14,16 @@
 
 U8GLIB_SSD1306_128X64 u8g(U8G_I2C_OPT_NONE | U8G_I2C_OPT_DEV_0); // I2C / TWI
 
-volatile int changeCounter = 0;
-volatile int changeLowCounter = 0;
-volatile int changeHighCounter = 0;
-volatile int pulseLenthCounter = 0;
-volatile int milisLastReset = 0;
-volatile int milisOverLast100Pulses = 0;
+volatile int pulseWidth = 0;
+volatile int cycleLength = 0;
 volatile int microsLastPulse = 0;
 volatile int lastPINB = 0;
 
 ISR(PCINT0_vect) {
-    changeCounter++;
-    milisOverLast100Pulses = PINB;
     if ((PINB & (1 << PINB3)) == 0) {
-        changeLowCounter++;
-        pulseLenthCounter = micros() - microsLastPulse;
+        pulseWidth = micros() - microsLastPulse;
     } else {
-        if (changeCounter == 50) {
-           milisOverLast100Pulses = millis() - milisLastReset;
-           milisLastReset = millis();
-           changeCounter = 0;
-        }
-        changeHighCounter++;
-        //TCNT1 = 0;
+        cycleLength = micros() - microsLastPulse;
         microsLastPulse = micros();
     }
 }
@@ -87,12 +74,9 @@ void loop() {
 void draw(void) {
     u8g.setFont(u8g_font_unifont);
     u8g.drawStr(0, 20, "TimerTestingTool");
-    String changeCounterString = String(changeCounter, DEC);
-    String changeHighCounterString = String(changeHighCounter, DEC);
-    String changeLowCounterString = String(changeLowCounter, DEC);
-    String pulseLenthCounterString = String(pulseLenthCounter, DEC);
-    String lastPINBString = String(lastPINB, BIN);
-    String milisOverLast100PulsesString = String(milisOverLast100Pulses, DEC);
+    String hertzString = String(1000000.0 / cycleLength, 2);    
+    //String cycleLengthString = String(cycleLength , DEC);
+    String pulseWidthString = String(pulseWidth, DEC);
     String secondsString = String(millis() / 1000 % 60, DEC);
     String minutesString = String(millis() / 1000 / 60 % 60, DEC);
     String hoursString = String(millis() / 1000 / 60 / 60, DEC);
@@ -103,7 +87,7 @@ void draw(void) {
         minutesString = "0" + minutesString;
     }
     u8g.setPrintPos(0, 60);
-    u8g.print(pulseLenthCounterString + ":" + milisOverLast100PulsesString);
+    u8g.print(hertzString + "hz " + pulseWidthString);
     u8g.setPrintPos(0, 40);
-    u8g.print(hoursString + ":" + minutesString + ":" + secondsString + "H" + changeHighCounterString + "L" + changeLowCounterString);
+    u8g.print(hoursString + ":" + minutesString + ":" + secondsString);
 }
