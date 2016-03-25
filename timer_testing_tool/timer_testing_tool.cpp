@@ -36,6 +36,9 @@ ISR(PCINT0_vect) {
                 lastServoMillis = millis() - millisServoStart;
                 millisServoStart = 0;
             }
+        } else {
+            cycleLength = micros() - microsLastPulse;
+            microsLastPulse = micros();
         }
     }
 
@@ -55,9 +58,6 @@ ISR(PCINT0_vect) {
                 millisEscStart = millis();
                 //escPowerTimout = (escPowerTimout>0)?escPowerTimout--:0;
             }
-        } else {
-            cycleLength = micros() - microsLastPulse;
-            microsLastPulse = micros();
         }
     }
 }
@@ -79,12 +79,38 @@ void setup() {
     sei();
 }
 
+String hertzString;
+String secondsString;
+String minutesString;
+String hoursString;
+String servoPercentString;
+String dethermalTimeString;
+String motorTimeString;
+String motorPercentString;
+String timeString;
+
 void loop() {
+    hertzString = String(1000000.0 / cycleLength, 2) + "hz";
+    secondsString = String(millis() / 1000 % 60, DEC);
+    minutesString = String(millis() / 1000 / 60 % 60, DEC);
+    hoursString = String(millis() / 1000 / 60 / 60, DEC);
+    if (secondsString.length() < 2) {
+        secondsString = "0" + secondsString;
+    }
+    if (minutesString.length() < 2) {
+        minutesString = "0" + minutesString;
+    }
+    servoPercentString = String(pulseWidthServo / 10 - 100, DEC) + "%";
+    dethermalTimeString = String(lastServoMillis / 1000.0, 1) + "s";
+    motorTimeString = String(lastMotorMillis / 1000.0, 1) + "s";
+    motorPercentString = String(pulseWidthEsc / 10 - 100, DEC) + "%";
+    timeString = hoursString + ":" + minutesString + ":" + secondsString;
+
     u8g.firstPage();
     do {
         draw();
     } while (u8g.nextPage());
-    delay(10);
+    delay(100);
 }
 
 void draw(void) {
@@ -92,33 +118,23 @@ void draw(void) {
     u8g.drawFrame(0, 0, 128, 20);
     u8g.drawFrame(0, 21, 63, 64 - 21);
     u8g.drawFrame(65, 21, 63, 64 - 21);
-    String hertzString = String(1000000.0 / cycleLength, 2);
-    String secondsString = String(millis() / 1000 % 60, DEC);
-    String minutesString = String(millis() / 1000 / 60 % 60, DEC);
-    String hoursString = String(millis() / 1000 / 60 / 60, DEC);
-    if (secondsString.length() < 2) {
-        secondsString = "0" + secondsString;
-    }
-    if (minutesString.length() < 2) {
-        minutesString = "0" + minutesString;
-    }
     u8g.setPrintPos(70, 15);
-    u8g.print(hertzString + "hz");
+    u8g.print(hertzString);
     u8g.setPrintPos(2, 15);
-    u8g.print(hoursString + ":" + minutesString + ":" + secondsString);
+    u8g.print(timeString);
     u8g.setPrintPos(1, 33);
     u8g.print("ESC");
     u8g.setPrintPos(20, 45);
     //u8g.print(pulseWidthServo + "\xB5s");
-    u8g.print(String(pulseWidthEsc / 10 - 100, DEC) + "%");
+    u8g.print(motorPercentString);
     //u8g.print(String(lastPINB,BIN));
     u8g.setPrintPos(5, 59);
-    u8g.print(String(lastMotorMillis / 1000.0, 1) + "s");
+    u8g.print(motorTimeString);
 
     u8g.setPrintPos(66, 33);
     u8g.print("DT");
     u8g.setPrintPos(70, 59);
-    u8g.print(String(lastServoMillis / 1000.0, 1) + "s");
+    u8g.print(dethermalTimeString);
     u8g.setPrintPos(85, 45);
-    u8g.print(String(pulseWidthServo / 10 - 100, DEC) + "%");
+    u8g.print(servoPercentString);
 }
