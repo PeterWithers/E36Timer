@@ -58,34 +58,16 @@ ISR(PCINT0_vect) {
 void setup() {
     // set PwmInput1 and PwmInput2 to inputs
     DDRB &= ~(1 << DDB3);
-    //DDRB &= ~(1 << DDB2);
-    //DDRB &= ~(1 << DDB1);
     DDRB &= ~(1 << DDB4);
-    //DDRB &= ~(1 << DDB5);
-    //DDRB &= ~(1 << DDB6);
-    //DDRB &= ~(1 << DDB7);
-    //DDRB &= ~(1 << DDB0);
 
     // turn On the Pull-up
     PORTB |= (1 << PORTB3);
-    //PORTB |= (1 << PORTB2);
-    //PORTB |= (1 << PORTB1);
-    //PORTB |= (1 << PORTB0);
     PORTB |= (1 << PORTB4);
-    //PORTB |= (1 << PORTB5);
-    //PORTB |= (1 << PORTB6);
-    //PORTB |= (1 << PORTB7);
 
-    // start the timer1
-    //TCCR1B |= (1 << CS12);
-    //TCCR1B |= (1 << CS10);
-
-    PCICR |= (1 << PCIE0);
     // enable pin interrupts
+    PCICR |= (1 << PCIE0);
     PCMSK0 |= (1 << PCINT3);
     PCMSK0 |= (1 << PCINT4);
-
-    // EICRA
 
     sei();
 }
@@ -104,8 +86,6 @@ void draw(void) {
     u8g.drawFrame(0, 21, 63, 64 - 21);
     u8g.drawFrame(65, 21, 63, 64 - 21);
     String hertzString = String(1000000.0 / cycleLength, 2);
-    //String cycleLengthString = String(cycleLength , DEC);
-    String pulseWidthEscString = String(pulseWidthEsc, DEC);
     String secondsString = String(millis() / 1000 % 60, DEC);
     String minutesString = String(millis() / 1000 / 60 % 60, DEC);
     String hoursString = String(millis() / 1000 / 60 / 60, DEC);
