@@ -51,7 +51,7 @@ volatile int buttonCountSinceLastChange = 0;
 volatile int buttonDebounceValue = 3;
 volatile int pwmCycleCount = 0;
 
-volatile const int editingTimeoutSeconds = 5;
+volatile const int editingTimeoutSeconds = 3;
 volatile const int cyclesPerSecond = 50;
 
 const int motorSeconds[] = {2, 4, 5, 7, 10, 15};
@@ -109,13 +109,13 @@ void loadSavedSettings() {
     dethermalSecondsIndex = eeprom_read_byte((uint8_t*) 2);
     motorSecondsIndex = (motorSecondsIndex < motorSecondsSize) ? motorSecondsIndex : motorSecondsSize - 1;
     dethermalSecondsIndex = (dethermalSecondsIndex < dethermalSecondsSize) ? dethermalSecondsIndex : dethermalSecondsSize - 1;
-    
+
     // if the osccalSavedIndicator value is not found then assume this is the first run after loading the firmware
     // after the firmware has been flashed the OSCCAL value will have been set by the boot loader so we save this to the EEPROM
     // on all other boots we set OSCCAL from the previously saved value from the EEPROM
     uint8_t osccalSavedIndicator = eeprom_read_byte((uint8_t*) 5);
-    if (osccalSavedIndicator == 21){
-        OSCCAL = eeprom_read_byte((uint8_t*) 6);    
+    if (osccalSavedIndicator == 21) {
+        OSCCAL = eeprom_read_byte((uint8_t*) 6);
     } else {
         eeprom_update_byte((uint8_t*) 6, OSCCAL);
         eeprom_update_byte((uint8_t*) 5, 21);
@@ -189,6 +189,8 @@ ISR(TIMER0_OVF_vect) {
                     buttonCountSinceLastChange = 0;
                 }
                 if (pwmCycleCount > editingTimeoutSeconds * cyclesPerSecond) {
+                    // we leave the ESC powered down until this point because some ESCs have timing issues that the bootloader delay seems to affect
+                    DDRB |= 1 << EscPWM; // set the ESC to output
                     machineState = waitingButtonStart;
                     pwmCycleCount = 0;
                     saveSettings();
@@ -308,7 +310,6 @@ ISR(TIMER0_COMPB_vect) {
 void setupRegisters() {
     DDRB |= 1 << IndicatorLed; // set the LED to output
     DDRB |= 1 << ServoPWM; // set the servo to output
-    DDRB |= 1 << EscPWM; // set the ESC to output
     DDRB &= ~(1 << ButtonPin); // set the button to input
     PORTB |= 1 << ButtonPin; // activate the internal pull up resistor
     GIMSK |= 1 << PCIE; // enable pin change interrupts
