@@ -14,7 +14,8 @@
 
 U8GLIB_SSD1306_128X64 u8g(U8G_I2C_OPT_NONE | U8G_I2C_OPT_DEV_0); // I2C / TWI
 
-volatile int pulseWidth = 0;
+volatile int pulseWidthEsc = 0;
+volatile int pulseWidthServo = 0;
 volatile int cycleLength = 0;
 volatile int microsLastPulse = 0;
 volatile int lastPINB = 0;
@@ -25,21 +26,32 @@ volatile int lastDethermalSeconds = 0;
 volatile int lastMotorMilis = 0;
 
 ISR(PCINT0_vect) {
-    if ((PINB & (1 << PINB3)) == 0) {
-        pulseWidth = micros() - microsLastPulse;
-        if (pulseWidth > 1400) {
-            //if(escPowerTimout==0){
-            //  milisEscStart = millis();
-            //  escPowerTimout=10;
-            //}
-            lastMotorMilis = millis() - milisEscStart;
-        } else if (pulseWidth < 1400) {
-            milisEscStart = millis();
-            //escPowerTimout = (escPowerTimout>0)?escPowerTimout--:0;
+    int changedBits = PINB^lastPINB;
+    lastPINB = PINB;
+
+    if ((changedBits & (1 << PINB4)) != 0) {
+        if ((PINB & (1 << PINB4)) == 0) {
+            pulseWidthServo = micros() - microsLastPulse;
         }
-    } else {
-        cycleLength = micros() - microsLastPulse;
-        microsLastPulse = micros();
+    }
+
+    if ((changedBits & (1 << PINB3)) != 0) {
+        if ((PINB & (1 << PINB3)) == 0) {
+            pulseWidthEsc = micros() - microsLastPulse;
+            if (pulseWidthEsc > 1400) {
+                //if(escPowerTimout==0){
+                //  milisEscStart = millis();
+                //  escPowerTimout=10;
+                //}
+                lastMotorMilis = millis() - milisEscStart;
+            } else if (pulseWidthEsc < 1400) {
+                milisEscStart = millis();
+                //escPowerTimout = (escPowerTimout>0)?escPowerTimout--:0;
+            }
+        } else {
+            cycleLength = micros() - microsLastPulse;
+            microsLastPulse = micros();
+        }
     }
 }
 
@@ -71,7 +83,7 @@ void setup() {
     PCICR |= (1 << PCIE0);
     // enable pin interrupts
     PCMSK0 |= (1 << PCINT3);
-    //    PCMSK0 |= (1 << PCINT4);
+    PCMSK0 |= (1 << PCINT4);
 
     // EICRA
 
@@ -93,7 +105,7 @@ void draw(void) {
     u8g.drawFrame(65, 21, 63, 64 - 21);
     String hertzString = String(1000000.0 / cycleLength, 2);
     //String cycleLengthString = String(cycleLength , DEC);
-    String pulseWidthString = String(pulseWidth, DEC);
+    String pulseWidthEscString = String(pulseWidthEsc, DEC);
     String secondsString = String(millis() / 1000 % 60, DEC);
     String minutesString = String(millis() / 1000 / 60 % 60, DEC);
     String hoursString = String(millis() / 1000 / 60 / 60, DEC);
@@ -104,13 +116,15 @@ void draw(void) {
         minutesString = "0" + minutesString;
     }
     u8g.setPrintPos(70, 15);
-    u8g.print(hertzString + "hz " + pulseWidthString);
+    u8g.print(hertzString + "hz");
     u8g.setPrintPos(2, 15);
     u8g.print(hoursString + ":" + minutesString + ":" + secondsString);
     u8g.setPrintPos(2, 35);
-    u8g.print(pulseWidthString + "\xB5s");
+    //u8g.print(pulseWidthServo + "\xB5s");
+    u8g.print(String(pulseWidthServo / 10 - 100) + "%");
+    //u8g.print(String(lastPINB,BIN));
     u8g.setPrintPos(2, 50);
     u8g.print(String(lastMotorMilis / 1000.0, 2) + "s");
     u8g.setPrintPos(66, 35);
-    u8g.print(String(pulseWidth / 10 - 100) + "%");
+    u8g.print(String(pulseWidthEsc / 10 - 100) + "%");
 }
