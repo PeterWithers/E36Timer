@@ -48,6 +48,8 @@ ISR(PCINT0_vect) {
                 //  escPowerTimout=10;
                 //}
                 lastMotorMillis = millis() - millisEscStart;
+                // clear the previous DT time once the motor starts again
+                lastServoMillis = 0;
                 millisServoStart = millisEscStart;
             } else if (pulseWidthEsc < 1400) {
                 millisEscStart = millis();
@@ -105,7 +107,7 @@ void draw(void) {
     u8g.setPrintPos(2, 15);
     u8g.print(hoursString + ":" + minutesString + ":" + secondsString);
     u8g.setPrintPos(1, 33);
-    u8g.print("ESC"); 
+    u8g.print("ESC");
     u8g.setPrintPos(20, 45);
     //u8g.print(pulseWidthServo + "\xB5s");
     u8g.print(String(pulseWidthEsc / 10 - 100) + "%");
@@ -114,7 +116,7 @@ void draw(void) {
     u8g.print(String(lastMotorMillis / 1000.0, 1) + "s");
 
     u8g.setPrintPos(66, 33);
-    u8g.print("DT"); 
+    u8g.print("DT");
     u8g.setPrintPos(70, 59);
     u8g.print(String(lastServoMillis / 1000.0, 1) + "s");
     u8g.setPrintPos(85, 45);
