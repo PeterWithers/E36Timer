@@ -18,10 +18,25 @@ volatile int pulseWidth = 0;
 volatile int cycleLength = 0;
 volatile int microsLastPulse = 0;
 volatile int lastPINB = 0;
+volatile int milisServoStart = 0;
+int milisEscStart = 0;
+//int escPowerTimout = 0;
+volatile int lastDethermalSeconds = 0;
+volatile int lastMotorMilis = 0;
 
 ISR(PCINT0_vect) {
     if ((PINB & (1 << PINB3)) == 0) {
         pulseWidth = micros() - microsLastPulse;
+        if (pulseWidth > 1100) {
+            //if(escPowerTimout==0){
+            //  milisEscStart = millis();
+            //  escPowerTimout=10;
+            //}
+            lastMotorMilis = millis() - milisEscStart;
+        } else if (pulseWidth < 1100) {
+            milisEscStart = millis();
+            //escPowerTimout = (escPowerTimout>0)?escPowerTimout--:0;
+        }
     } else {
         cycleLength = micros() - microsLastPulse;
         microsLastPulse = micros();
@@ -94,6 +109,8 @@ void draw(void) {
     u8g.print(hoursString + ":" + minutesString + ":" + secondsString);
     u8g.setPrintPos(2, 35);
     u8g.print(pulseWidthString + "\xB5s");
+    u8g.setPrintPos(2, 50);
+    u8g.print(String(lastMotorMilis / 1000.0, 2) + "s");
     u8g.setPrintPos(66, 35);
     u8g.print(String(pulseWidth / 10 - 100) + "%");
 }
