@@ -24,6 +24,7 @@ int millisEscStart = 0;
 //int escPowerTimout = 0;
 volatile int lastServoMillis = 0;
 volatile int lastMotorMillis = 0;
+int dethermalCycleCount = 0;
 
 ISR(PCINT0_vect) {
     int changedBits = PINB^lastPINB;
@@ -32,9 +33,16 @@ ISR(PCINT0_vect) {
     if ((changedBits & (1 << PINB4)) != 0) {
         if ((PINB & (1 << PINB4)) == 0) {
             pulseWidthServo = micros() - microsLastPulse;
-            if (pulseWidthServo > 1500 && millisServoStart > 0) {
+            if (millisServoStart > 0) {
                 lastServoMillis = millis() - millisServoStart;
-                millisServoStart = 0;
+                if (pulseWidthServo > 1500) {
+                    if (dethermalCycleCount > 10) {
+                        millisServoStart = 0;
+                    }
+                    dethermalCycleCount++;
+                } else {
+                    dethermalCycleCount = 0;
+                }
             }
         } else {
             cycleLength = micros() - microsLastPulse;
@@ -52,7 +60,7 @@ ISR(PCINT0_vect) {
                 //}
                 lastMotorMillis = millis() - millisEscStart;
                 // clear the previous DT time once the motor starts again
-                lastServoMillis = 0;
+                //lastServoMillis = 0;
                 millisServoStart = millisEscStart;
             } else if (pulseWidthEsc < 1400) {
                 millisEscStart = millis();
