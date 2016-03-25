@@ -27,13 +27,13 @@ volatile int lastMotorMilis = 0;
 ISR(PCINT0_vect) {
     if ((PINB & (1 << PINB3)) == 0) {
         pulseWidth = micros() - microsLastPulse;
-        if (pulseWidth > 1100) {
+        if (pulseWidth > 1400) {
             //if(escPowerTimout==0){
             //  milisEscStart = millis();
             //  escPowerTimout=10;
             //}
             lastMotorMilis = millis() - milisEscStart;
-        } else if (pulseWidth < 1100) {
+        } else if (pulseWidth < 1400) {
             milisEscStart = millis();
             //escPowerTimout = (escPowerTimout>0)?escPowerTimout--:0;
         }
