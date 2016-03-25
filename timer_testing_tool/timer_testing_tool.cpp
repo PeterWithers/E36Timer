@@ -19,11 +19,11 @@ volatile int pulseWidthServo = 0;
 volatile int cycleLength = 0;
 volatile int microsLastPulse = 0;
 volatile int lastPINB = 0;
-volatile int milisServoStart = 0;
-int milisEscStart = 0;
+int millisServoStart = 0;
+int millisEscStart = 0;
 //int escPowerTimout = 0;
-volatile int lastDethermalSeconds = 0;
-volatile int lastMotorMilis = 0;
+volatile int lastServoMillis = 0;
+volatile int lastMotorMillis = 0;
 
 ISR(PCINT0_vect) {
     int changedBits = PINB^lastPINB;
@@ -32,6 +32,10 @@ ISR(PCINT0_vect) {
     if ((changedBits & (1 << PINB4)) != 0) {
         if ((PINB & (1 << PINB4)) == 0) {
             pulseWidthServo = micros() - microsLastPulse;
+            if (pulseWidthServo > 1500 && millisServoStart > 0) {
+                lastServoMillis = millis() - millisServoStart;
+                millisServoStart = 0;
+            }
         }
     }
 
@@ -40,12 +44,13 @@ ISR(PCINT0_vect) {
             pulseWidthEsc = micros() - microsLastPulse;
             if (pulseWidthEsc > 1400) {
                 //if(escPowerTimout==0){
-                //  milisEscStart = millis();
+                //  millisEscStart = millis();
                 //  escPowerTimout=10;
                 //}
-                lastMotorMilis = millis() - milisEscStart;
+                lastMotorMillis = millis() - millisEscStart;
+                millisServoStart = millisEscStart;
             } else if (pulseWidthEsc < 1400) {
-                milisEscStart = millis();
+                millisEscStart = millis();
                 //escPowerTimout = (escPowerTimout>0)?escPowerTimout--:0;
             }
         } else {
@@ -101,10 +106,13 @@ void draw(void) {
     u8g.print(hoursString + ":" + minutesString + ":" + secondsString);
     u8g.setPrintPos(2, 35);
     //u8g.print(pulseWidthServo + "\xB5s");
-    u8g.print(String(pulseWidthServo / 10 - 100) + "%");
+    u8g.print(String(pulseWidthEsc / 10 - 100) + "%");
     //u8g.print(String(lastPINB,BIN));
     u8g.setPrintPos(2, 50);
-    u8g.print(String(lastMotorMilis / 1000.0, 2) + "s");
+    u8g.print(String(lastMotorMillis / 1000.0, 2) + "s");
+
+    u8g.setPrintPos(66, 50);
+    u8g.print(String(lastServoMillis / 1000.0, 2) + "s");
     u8g.setPrintPos(66, 35);
-    u8g.print(String(pulseWidthEsc / 10 - 100) + "%");
+    u8g.print(String(pulseWidthServo / 10 - 100) + "%");
 }
