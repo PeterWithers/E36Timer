@@ -110,7 +110,7 @@ void draw(void) {
     u8g.print("ESC");
     u8g.setPrintPos(20, 45);
     //u8g.print(pulseWidthServo + "\xB5s");
-    u8g.print(String(pulseWidthEsc / 10 - 100) + "%");
+    u8g.print(String(pulseWidthEsc / 10 - 100, DEC) + "%");
     //u8g.print(String(lastPINB,BIN));
     u8g.setPrintPos(5, 59);
     u8g.print(String(lastMotorMillis / 1000.0, 1) + "s");
@@ -120,5 +120,5 @@ void draw(void) {
     u8g.setPrintPos(70, 59);
     u8g.print(String(lastServoMillis / 1000.0, 1) + "s");
     u8g.setPrintPos(85, 45);
-    u8g.print(String(pulseWidthServo / 10 - 100) + "%");
+    u8g.print(String(pulseWidthServo / 10 - 100, DEC) + "%");
 }
