@@ -18,10 +18,10 @@
 #define EscPWM           PB4
 #define ButtonPin        PB2
 
-//#define MaxOCR0A 125
-//#define MinOCR0A 60
-#define MaxOCR0A 140
-#define MinOCR0A 50
+#define MaxOCR0A 129
+#define MinOCR0A 64
+//#define MaxOCR0A 140
+//#define MinOCR0A 50
 
 #define ButtonIsDown ((PINB & (1 << ButtonPin)) == 0)
 
