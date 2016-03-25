@@ -56,7 +56,7 @@ void setup() {
     PCICR |= (1 << PCIE0);
     // enable pin interrupts
     PCMSK0 |= (1 << PCINT3);
-//    PCMSK0 |= (1 << PCINT4);
+    //    PCMSK0 |= (1 << PCINT4);
 
     // EICRA
 
@@ -73,8 +73,10 @@ void loop() {
 
 void draw(void) {
     u8g.setFont(u8g_font_unifont);
-    u8g.drawStr(0, 20, "TimerTestingTool");
-    String hertzString = String(1000000.0 / cycleLength, 2);    
+    u8g.drawFrame(0, 0, 128, 20);
+    u8g.drawFrame(0, 21, 63, 64 - 21);
+    u8g.drawFrame(65, 21, 63, 64 - 21);
+    String hertzString = String(1000000.0 / cycleLength, 2);
     //String cycleLengthString = String(cycleLength , DEC);
     String pulseWidthString = String(pulseWidth, DEC);
     String secondsString = String(millis() / 1000 % 60, DEC);
@@ -86,8 +88,12 @@ void draw(void) {
     if (minutesString.length() < 2) {
         minutesString = "0" + minutesString;
     }
-    u8g.setPrintPos(0, 60);
+    u8g.setPrintPos(70, 15);
     u8g.print(hertzString + "hz " + pulseWidthString);
-    u8g.setPrintPos(0, 40);
+    u8g.setPrintPos(2, 15);
     u8g.print(hoursString + ":" + minutesString + ":" + secondsString);
+    u8g.setPrintPos(2, 35);
+    u8g.print(pulseWidthString + "\xB5s");
+    u8g.setPrintPos(66, 35);
+    u8g.print(String(pulseWidth / 10 - 100) + "%");
 }
