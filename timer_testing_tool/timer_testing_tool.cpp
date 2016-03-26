@@ -19,11 +19,11 @@ volatile int pulseWidthServo = 0;
 volatile int cycleLength = 0;
 volatile int microsLastPulse = 0;
 volatile int lastPINB = 0;
-volatile int millisServoStart = 0;
-volatile int millisEscStart = 0;
+volatile unsigned long millisServoStart = 0;
+volatile unsigned long millisEscStart = 0;
 //int escPowerTimout = 0;
-volatile int lastServoMillis = 0;
-volatile int lastMotorMillis = 0;
+volatile unsigned long lastServoMillis = 0;
+volatile unsigned long lastMotorMillis = 0;
 volatile int dethermalCycleCount = 0;
 
 ISR(PCINT0_vect) {
