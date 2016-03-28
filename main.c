@@ -18,10 +18,10 @@
 #define EscPWM           PB4
 #define ButtonPin        PB2
 
-//#define MaxOCR0A 125
-//#define MinOCR0A 60
-#define MaxOCR0A 140
-#define MinOCR0A 50
+#define MaxOCR0A 129
+#define MinOCR0A 64
+//#define MaxOCR0A 140
+//#define MinOCR0A 50
 
 #define ButtonIsDown ((PINB & (1 << ButtonPin)) == 0)
 
@@ -51,7 +51,7 @@ volatile int buttonCountSinceLastChange = 0;
 volatile int buttonDebounceValue = 3;
 volatile int pwmCycleCount = 0;
 
-volatile const int editingTimeoutSeconds = 5;
+volatile const int editingTimeoutSeconds = 3;
 volatile const int cyclesPerSecond = 50;
 
 const int motorSeconds[] = {2, 4, 5, 7, 10, 15};
@@ -195,6 +195,8 @@ ISR(TIMER0_OVF_vect) {
                     buttonCountSinceLastChange = 0;
                 }
                 if (pwmCycleCount > editingTimeoutSeconds * cyclesPerSecond) {
+                    // we leave the ESC powered down until this point because some ESCs have timing issues that the bootloader delay seems to affect
+                    DDRB |= 1 << EscPWM; // set the ESC to output
                     machineState = waitingButtonStart;
                     pwmCycleCount = 0;
                     saveSettings();
@@ -314,7 +316,6 @@ ISR(TIMER0_COMPB_vect) {
 void setupRegisters() {
     DDRB |= 1 << IndicatorLed; // set the LED to output
     DDRB |= 1 << ServoPWM; // set the servo to output
-    DDRB |= 1 << EscPWM; // set the ESC to output
     DDRB &= ~(1 << ButtonPin); // set the button to input
     PORTB |= 1 << ButtonPin; // activate the internal pull up resistor
     GIMSK |= 1 << PCIE; // enable pin change interrupts
