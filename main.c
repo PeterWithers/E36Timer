@@ -127,11 +127,12 @@ void loadSavedSettings() {
     // after the firmware has been flashed the OSCCAL value will have been set by the boot loader so we save this to the EEPROM
     // on all other boots we set OSCCAL from the previously saved value from the EEPROM
     uint8_t osccalSavedIndicator = eeprom_read_byte((uint8_t*) 5);
-    if (osccalSavedIndicator == 20) {
+    int osccalSavedIndex = 19;
+    if (osccalSavedIndicator == osccalSavedIndex) {
         OSCCAL = eeprom_read_byte((uint8_t*) 6);
     } else {
         eeprom_update_byte((uint8_t*) 6, OSCCAL);
-        eeprom_update_byte((uint8_t*) 5, 21);
+        eeprom_update_byte((uint8_t*) 5, osccalSavedIndex);
     }
 }
 
