@@ -58,6 +58,12 @@ const int motorSeconds[] = {2, 4, 5, 7, 10, 15};
 const int motorSecondsSize = 6;
 volatile uint8_t motorSecondsIndex = 0;
 const int dethermalSeconds[] = {0, 5, 30, 60, 90, 120, 180, 240, 300};
+
+// measured actual times
+//float actualESC[] = {3.6, 5.3, 6.5/*6.3,6.2,6.3*/,8.2,11.2,16.4};
+//float actualDT[] = {5.7, 12.3, 38.2/*38.0,37.9,37.9*/,69.5,102.1,136.9};
+// measured actual times
+
 const int dethermalSecondsSize = 9;
 volatile uint8_t dethermalSecondsIndex = 0;
 volatile int timer0OverflowCounter = 0;
@@ -109,13 +115,13 @@ void loadSavedSettings() {
     dethermalSecondsIndex = eeprom_read_byte((uint8_t*) 2);
     motorSecondsIndex = (motorSecondsIndex < motorSecondsSize) ? motorSecondsIndex : motorSecondsSize - 1;
     dethermalSecondsIndex = (dethermalSecondsIndex < dethermalSecondsSize) ? dethermalSecondsIndex : dethermalSecondsSize - 1;
-    
+
     // if the osccalSavedIndicator value is not found then assume this is the first run after loading the firmware
     // after the firmware has been flashed the OSCCAL value will have been set by the boot loader so we save this to the EEPROM
     // on all other boots we set OSCCAL from the previously saved value from the EEPROM
     uint8_t osccalSavedIndicator = eeprom_read_byte((uint8_t*) 5);
-    if (osccalSavedIndicator == 21){
-        OSCCAL = eeprom_read_byte((uint8_t*) 6);    
+    if (osccalSavedIndicator == 21) {
+        OSCCAL = eeprom_read_byte((uint8_t*) 6);
     } else {
         eeprom_update_byte((uint8_t*) 6, OSCCAL);
         eeprom_update_byte((uint8_t*) 5, 21);
@@ -251,7 +257,7 @@ ISR(TIMER0_OVF_vect) {
                         if (ButtonIsDown) {
                             if (buttonHasBeenUp == 1) {
                                 machineState = waitingButtonStart;
-                                pwmCycleCount = 0;
+                                // do not reset the pwmCycleCount here because the DT time should overlap the motor run time
                                 buttonHasBeenUp = 0;
                                 // power down the motor in the case of restarts
                                 OCR0B = MinOCR0A;
