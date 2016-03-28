@@ -52,17 +52,24 @@ volatile int buttonDebounceValue = 3;
 volatile int pwmCycleCount = 0;
 
 volatile const int editingTimeoutSeconds = 3;
-volatile const int cyclesPerSecond = 50;
+volatile const int cyclesPerSecond = 49;
 
 const int motorSeconds[] = {2, 4, 5, 7, 10, 15};
 const int motorSecondsSize = 6;
 volatile uint8_t motorSecondsIndex = 0;
 const int dethermalSeconds[] = {0, 5, 30, 60, 90, 120, 180, 240, 300};
 
-// measured actual times
-//float actualESC[] = {3.6, 5.3, 6.5/*6.3,6.2,6.3*/,8.2,11.2,16.4};
-//float actualDT[] = {5.7, 12.3, 38.2/*38.0,37.9,37.9*/,69.5,102.1,136.9};
-// measured actual times
+// start measured actual times
+// tested with the timer calibrated to produce 50.38hz
+// motor 2: {2.3}
+// motor 7: {7.2}
+// motor 15: {14.9,14.6,14.9,14.7};
+// any DT below motor time of 15: {16.0,15.7}
+// DT 0 with motor 2: {3.4}
+// DT 30: {30.6};
+// DT 60: {59.8};
+// DT 300: {293.0};
+// end measured actual times
 
 const int dethermalSecondsSize = 9;
 volatile uint8_t dethermalSecondsIndex = 0;
@@ -120,7 +127,7 @@ void loadSavedSettings() {
     // after the firmware has been flashed the OSCCAL value will have been set by the boot loader so we save this to the EEPROM
     // on all other boots we set OSCCAL from the previously saved value from the EEPROM
     uint8_t osccalSavedIndicator = eeprom_read_byte((uint8_t*) 5);
-    if (osccalSavedIndicator == 21) {
+    if (osccalSavedIndicator == 20) {
         OSCCAL = eeprom_read_byte((uint8_t*) 6);
     } else {
         eeprom_update_byte((uint8_t*) 6, OSCCAL);
@@ -237,13 +244,13 @@ ISR(TIMER0_OVF_vect) {
                 fastFlash(pwmCycleCount);
                 break;
             case motorRun:
-                if (pwmCycleCount / cyclesPerSecond > motorSeconds[motorSecondsIndex]) {
+                if ((pwmCycleCount + (/*powerDownCycles*/ MaxOCR0A - MinOCR0A)) / cyclesPerSecond > motorSeconds[motorSecondsIndex]) {
                     // power down and switch state
                     OCR0B = (OCR0B > MinOCR0A) ? OCR0B - 1 : MinOCR0A;
                     if (OCR0B <= MinOCR0A) {
                         TurnOffLed;
                         machineState = freeFlight;
-                        pwmCycleCount = 0;
+                        // do not reset the pwmCycleCount here because the DT time should overlap the motor run time
                     } else {
                         TurnOnLed;
                     }
@@ -259,7 +266,7 @@ ISR(TIMER0_OVF_vect) {
                         if (ButtonIsDown) {
                             if (buttonHasBeenUp == 1) {
                                 machineState = waitingButtonStart;
-                                // do not reset the pwmCycleCount here because the DT time should overlap the motor run time
+                                pwmCycleCount = 0;
                                 buttonHasBeenUp = 0;
                                 // power down the motor in the case of restarts
                                 OCR0B = MinOCR0A;
