@@ -1,0 +1,29 @@
+<!--
+ Copyright (C) 2016 Peter Withers
+ Created: 18/05/2016 22:27:32
+ Author : Peter Withers <peter@gthb-bambooradical.com>
+-->
+<svg width="640" height="480" xmlns="http://www.w3.org/2000/svg" xmlns:svg="http://www.w3.org/2000/svg" xmlns:xlink="http://www.w3.org/1999/xlink">
+ <g>
+  <title>Connection Diagram</title>
+  <circle stroke="#000000" fill-opacity="0" id="svg_13" r="17" cy="140.5" cx="204" stroke-width="5" fill="#000000"/>
+  <circle id="svg_15" stroke="#000000" fill-opacity="0" r="17" cy="275" cx="204" stroke-width="5" fill="#000000"/>
+  <rect id="svg_1" height="180" width="230" y="117.77778" x="177.66666" stroke-width="5" stroke="#000000" fill="#000000" fill-opacity="0"/>
+  <circle id="svg_4" fill="brown" stroke="#000000" stroke-width="5" cx="288" cy="283" r="8"/>
+  <circle id="svg_5" fill="grey" stroke="#000000" stroke-width="5" cx="315" cy="283" r="8"/>
+  <circle id="svg_2" fill="red" stroke="#000000" stroke-width="5" cx="264" cy="283" r="8"/>
+  <circle id="svg_6" fill="orange" stroke="#000000" stroke-width="5" cx="391" cy="260" r="8"/>
+  <circle id="svg_7" fill="grey" stroke="#000000" stroke-width="5" cx="391" cy="235" r="8"/>
+  <circle id="svg_8" fill="blue" stroke="#000000" stroke-width="5" cx="391" cy="209" r="8"/>
+  <circle id="svg_9" fill="grey" stroke="#000000" stroke-width="5" cx="391" cy="184" r="8"/>
+  <circle id="svg_10" fill="orange" stroke="#000000" stroke-width="5" cx="391" cy="158" r="8"/>
+  <circle id="svg_11" fill="grey" stroke="#000000" stroke-width="5" cx="391" cy="133" r="8"/>
+  <rect stroke="#000000" id="svg_12" height="72" width="82" y="171" x="144" stroke-width="5" fill="#e5e5e5"/>
+  <text transform="rotate(90 264.81207275390625,318.24496459960943) " xml:space="preserve" text-anchor="left" font-family="serif" font-size="24" id="svg_16" y="326.02107" x="238" stroke-width="0" stroke="#000000" fill="#000000">---5v</text>
+  <text transform="rotate(90 290.2747802734375,318.62338256835943) " xml:space="preserve" text-anchor="left" font-family="serif" font-size="24" id="svg_17" y="326.39682" x="262" stroke-width="0" stroke="#000000" fill="#000000">---0v</text>
+  <text xml:space="preserve" text-anchor="left" font-family="serif" font-size="24" id="svg_18" y="266.46094" x="400" stroke-width="0" stroke="#000000" fill="#000000">---Servo</text>
+  <text xml:space="preserve" text-anchor="left" font-family="serif" font-size="24" id="svg_19" y="165.84191" x="400" stroke-width="0" stroke="#000000" fill="#000000">---ESC</text>
+  <text xml:space="preserve" text-anchor="left" font-family="serif" font-size="24" id="svg_20" y="217.24786" x="400" stroke-width="0" stroke="#000000" fill="#000000">---Button</text>
+  <text xml:space="preserve" text-anchor="middle" font-family="serif" font-size="24" id="svg_21" y="213.34338" x="181.77747" stroke-width="0" stroke="#000000" fill="#000000">USB</text>
+ </g>
+</svg>
