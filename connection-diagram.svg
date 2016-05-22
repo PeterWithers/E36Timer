@@ -23,7 +23,7 @@
   <text transform="rotate(90 290.2747802734375,318.62338256835943) " xml:space="preserve" text-anchor="left" font-family="serif" font-size="24" id="svg_17" y="326.39682" x="262" stroke-width="0" stroke="#000000" fill="#000000">---0v</text>
   <text xml:space="preserve" text-anchor="left" font-family="serif" font-size="24" id="svg_18" y="266.46094" x="400" stroke-width="0" stroke="#000000" fill="#000000">---Servo</text>
   <text xml:space="preserve" text-anchor="left" font-family="serif" font-size="24" id="svg_19" y="165.84191" x="400" stroke-width="0" stroke="#000000" fill="#000000">---ESC</text>
-  <text xml:space="preserve" text-anchor="left" font-family="serif" font-size="24" id="svg_20" y="217.24786" x="400" stroke-width="0" stroke="#000000" fill="#000000">---Button</text>
+  <text xml:space="preserve" text-anchor="left" font-family="serif" font-size="24" id="svg_20" y="217.24786" x="400" stroke-width="0" stroke="#000000" fill="#000000">---Button   ===&gt;   0v</text>
   <text xml:space="preserve" text-anchor="middle" font-family="serif" font-size="24" id="svg_21" y="213.34338" x="181.77747" stroke-width="0" stroke="#000000" fill="#000000">USB</text>
  </g>
 </svg>
