@@ -3,7 +3,7 @@
  */
 
 /*
- * E36Timer.c
+ * esc-program.c
  *
  * Created: 13/02/2016 18:00:32
  * Author : Peter Withers <peter@gthb-bambooradical.com>
@@ -28,21 +28,12 @@
 #define TurnOnLed PORTB |= (1 << IndicatorLed);
 #define TurnOffLed PORTB &= ~(1 << IndicatorLed);
 
-#define DisplayMotorTime OCR0A = MinOCR0A + ((MaxOCR0A - MinOCR0A) * motorSecondsIndex / (motorSecondsSize - 1));
-#define DisplayDethermalTime OCR0A = MinOCR0A + ((MaxOCR0A - MinOCR0A) * dethermalSecondsIndex / (dethermalSecondsSize - 1));
-
 enum MachineState {
     setupSystem,
-    startWipe, // when the device resets we wipe the servo arm to release the DT lever so that a reset in midair does not prevent DT
-    endWipe,
-    editMotorTime,
-    editDtTime,
-    waitingButtonStart,
-    waitingButtonRelease,
-    motorRun,
-    freeFlight,
-    triggerDT,
-    waitingForRestart
+    throttleMax,
+    waitingButtonRelease1,
+    throttleMin,
+    waitingButtonRelease2
 };
 
 volatile enum MachineState machineState = setupSystem;
@@ -54,75 +45,10 @@ volatile int pwmCycleCount = 0;
 volatile const int editingTimeoutSeconds = 3;
 volatile const int cyclesPerSecond = 49;
 
-const int motorSeconds[] = {2, 4, 5, 7, 10, 15};
-const int motorSecondsSize = 6;
-volatile uint8_t motorSecondsIndex = 0;
-const int dethermalSeconds[] = {0, 5, 30, 60, 90, 120, 180, 240, 300};
-
-// start measured actual times
-// tested with the timer calibrated to produce 50.38hz
-// motor 2: {2.3}
-// motor 7: {7.2}
-// motor 15: {14.9,14.6,14.9,14.7};
-// any DT below motor time of 15: {16.0,15.7}
-// DT 0 with motor 2: {3.4}
-// DT 30: {30.6};
-// DT 60: {59.8};
-// DT 300: {293.0};
-// end measured actual times
-
-const int dethermalSecondsSize = 9;
-volatile uint8_t dethermalSecondsIndex = 0;
 volatile int timer0OverflowCounter = 0;
-const int waitingEscValue = ((MaxOCR0A - MinOCR0A) / 3) + MinOCR0A;
 volatile int buttonHasBeenUp = 0;
 
-void slowFlash(int pwmCycleCount) {
-    if (pwmCycleCount / cyclesPerSecond % 2 == 0) {
-        TurnOnLed;
-    } else {
-        TurnOffLed;
-    }
-}
-
-void fastFlash(int pwmCycleCount) {
-    if ((pwmCycleCount / (cyclesPerSecond / 5)) % 2 == 0) {
-        TurnOnLed;
-    } else {
-        TurnOffLed;
-    }
-}
-
-void doubleFlash(int pwmCycleCount) {
-    int pulseIndex = (pwmCycleCount / (cyclesPerSecond / 5)) % 10;
-    if (pulseIndex == 0 || pulseIndex == 3) {
-        TurnOnLed;
-    } else {
-        TurnOffLed;
-    }
-}
-
-void trippleFlash(int pwmCycleCount) {
-    int pulseIndex = (pwmCycleCount / (cyclesPerSecond / 5)) % 10;
-    if (pulseIndex == 0 || pulseIndex == 2 || pulseIndex == 4) {
-        TurnOnLed;
-    } else {
-        TurnOffLed;
-    }
-}
-
-void saveSettings() {
-    // using update not write to preserve eeprom life
-    eeprom_update_byte((uint8_t*) 1, motorSecondsIndex);
-    eeprom_update_byte((uint8_t*) 2, dethermalSecondsIndex);
-}
-
 void loadSavedSettings() {
-    motorSecondsIndex = eeprom_read_byte((uint8_t*) 1);
-    dethermalSecondsIndex = eeprom_read_byte((uint8_t*) 2);
-    motorSecondsIndex = (motorSecondsIndex < motorSecondsSize) ? motorSecondsIndex : motorSecondsSize - 1;
-    dethermalSecondsIndex = (dethermalSecondsIndex < dethermalSecondsSize) ? dethermalSecondsIndex : dethermalSecondsSize - 1;
-
     // if the osccalSavedIndicator value is not found then assume this is the first run after loading the firmware
     // after the firmware has been flashed the OSCCAL value will have been set by the boot loader so we save this to the EEPROM
     // on all other boots we set OSCCAL from the previously saved value from the EEPROM
@@ -152,150 +78,19 @@ ISR(TIMER0_OVF_vect) {
         switch (machineState) {
             case setupSystem:
                 break;
-            case startWipe:
+            case throttleMax:
                 OCR0A = (OCR0A + 2 < MaxOCR0A) ? OCR0A + 2 : MaxOCR0A;
+                OCR0B = OCR0A;
                 if (OCR0A >= MaxOCR0A) {
-                    machineState = endWipe;
-                }
-                break;
-            case endWipe:
-                OCR0A = (OCR0A - 2 > MinOCR0A) ? OCR0A - 2 : MinOCR0A;
-                if (OCR0A <= MinOCR0A) {
-                    machineState = editMotorTime;
-                    DisplayMotorTime;
-                }
-                break;
-            case editMotorTime:
-                if (buttonCountSinceLastChange > buttonDebounceValue) {
-                    if (ButtonIsDown) {
-                        if (buttonHasBeenUp == 1) {
-                            // adjust motorSeconds
-                            motorSecondsIndex = (motorSecondsIndex < motorSecondsSize - 1) ? motorSecondsIndex + 1 : 0;
-                            DisplayMotorTime;
-                            pwmCycleCount = 0;
-                            buttonHasBeenUp = 0;
-                        }
-                    } else {
-                        buttonHasBeenUp = 1;
-                    }
-                    buttonCountSinceLastChange = 0;
-                }
-                if (pwmCycleCount > editingTimeoutSeconds * cyclesPerSecond) {
-                    machineState = editDtTime;
-                    DisplayDethermalTime;
-                    pwmCycleCount = 0;
-                }
-                doubleFlash(pwmCycleCount);
-                break;
-            case editDtTime:
-                if (buttonCountSinceLastChange > buttonDebounceValue) {
-                    if (ButtonIsDown) {
-                        if (buttonHasBeenUp == 1) {
-                            // adjust dethermalSeconds
-                            dethermalSecondsIndex = (dethermalSecondsIndex < dethermalSecondsSize - 1) ? dethermalSecondsIndex + 1 : 0;
-                            DisplayDethermalTime;
-                            pwmCycleCount = 0;
-                            buttonHasBeenUp = 0;
-                        }
-                    } else {
-                        buttonHasBeenUp = 1;
-                    }
-                    buttonCountSinceLastChange = 0;
-                }
-                if (pwmCycleCount > editingTimeoutSeconds * cyclesPerSecond) {
-                    // we leave the ESC powered down until this point because some ESCs have timing issues that the bootloader delay seems to affect
                     DDRB |= 1 << EscPWM; // set the ESC to output
-                    machineState = waitingButtonStart;
-                    pwmCycleCount = 0;
-                    saveSettings();
-                }
-                trippleFlash(pwmCycleCount);
-                break;
-            case waitingButtonStart:
-                OCR0A = (OCR0A - 2 > MinOCR0A) ? OCR0A - 2 : MinOCR0A;
-                if (OCR0A <= MinOCR0A) {
-                    if (buttonCountSinceLastChange > buttonDebounceValue) {
-                        if (ButtonIsDown) {
-                            if (buttonHasBeenUp == 1) {
-                                machineState = waitingButtonRelease;
-                                buttonHasBeenUp = 0;
-                            }
-                        } else {
-                            buttonHasBeenUp = 1;
-                        }
-                        buttonCountSinceLastChange = 0;
-                    }
-                    slowFlash(pwmCycleCount);
+                    machineState = waitingButtonRelease1;
                 }
                 break;
-            case waitingButtonRelease:
-                OCR0B = (OCR0B < waitingEscValue) ? OCR0B + 1 : waitingEscValue;
-                if (buttonCountSinceLastChange > buttonDebounceValue) {
-                    if (!ButtonIsDown) {
-                        if (buttonHasBeenUp == 0) {
-                            machineState = motorRun;
-                            pwmCycleCount = 0;
-                            buttonHasBeenUp = 1;
-                        }
-                    } else {
-                        buttonHasBeenUp = 0;
-                    }
-                    buttonCountSinceLastChange = 0;
-                }
-                fastFlash(pwmCycleCount);
-                break;
-            case motorRun:
-                if ((pwmCycleCount + (/*powerDownCycles*/ MaxOCR0A - MinOCR0A)) / cyclesPerSecond > motorSeconds[motorSecondsIndex]) {
-                    // power down and switch state
-                    OCR0B = (OCR0B > MinOCR0A) ? OCR0B - 1 : MinOCR0A;
-                    if (OCR0B <= MinOCR0A) {
-                        TurnOffLed;
-                        machineState = freeFlight;
-                        // do not reset the pwmCycleCount here because the DT time should overlap the motor run time
-                    } else {
-                        TurnOnLed;
-                    }
-                } else {
-                    if (OCR0B >= MaxOCR0A) {
-                        TurnOffLed;
-                    } else {
-                        TurnOnLed;
-                        OCR0B = (OCR0B < MaxOCR0A) ? OCR0B + 1 : MaxOCR0A;
-                    }
-                    // allow restarts starts
-                    if (buttonCountSinceLastChange > buttonDebounceValue) {
-                        if (ButtonIsDown) {
-                            if (buttonHasBeenUp == 1) {
-                                machineState = waitingButtonStart;
-                                pwmCycleCount = 0;
-                                buttonHasBeenUp = 0;
-                                // power down the motor in the case of restarts
-                                OCR0B = MinOCR0A;
-                            }
-                        } else {
-                            buttonHasBeenUp = 1;
-                        }
-                        buttonCountSinceLastChange = 0;
-                    }
-                }
-                break;
-            case freeFlight:
-                if (pwmCycleCount / cyclesPerSecond > dethermalSeconds[dethermalSecondsIndex]) {
-                    machineState = triggerDT;
-                    pwmCycleCount = 0;
-                }
-                break;
-            case triggerDT:
-                OCR0A = (OCR0A + 2 < MaxOCR0A) ? OCR0A + 2 : MaxOCR0A;
-                if (OCR0A >= MaxOCR0A) {
-                    machineState = waitingForRestart;
-                }
-                break;
-            case waitingForRestart:
+            case waitingButtonRelease1:
                 if (buttonCountSinceLastChange > buttonDebounceValue) {
                     if (ButtonIsDown) {
                         if (buttonHasBeenUp == 1) {
-                            machineState = waitingButtonStart;
+                            machineState = throttleMin;
                             buttonHasBeenUp = 0;
                         }
                     } else {
@@ -303,7 +98,26 @@ ISR(TIMER0_OVF_vect) {
                     }
                     buttonCountSinceLastChange = 0;
                 }
-                fastFlash(pwmCycleCount);
+                break;
+            case throttleMin:
+                OCR0A = (OCR0A - 2 > MinOCR0A) ? OCR0A - 2 : MinOCR0A;
+                OCR0B = OCR0A;
+                if (OCR0A <= MinOCR0A) {
+                    machineState = waitingButtonRelease2;
+                }
+                break;
+            case waitingButtonRelease2:
+                if (buttonCountSinceLastChange > buttonDebounceValue) {
+                    if (ButtonIsDown) {
+                        if (buttonHasBeenUp == 1) {
+                            machineState = throttleMax;
+                            buttonHasBeenUp = 0;
+                        }
+                    } else {
+                        buttonHasBeenUp = 1;
+                    }
+                    buttonCountSinceLastChange = 0;
+                }
                 break;
         }
     }
@@ -356,7 +170,7 @@ int main(void) {
     loadSavedSettings();
     setupRegisters();
     sei();
-    machineState = startWipe;
+    machineState = throttleMax;
     while (1) {
     }
 }
