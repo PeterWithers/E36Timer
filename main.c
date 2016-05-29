@@ -54,7 +54,8 @@ volatile int buttonDebounceValue = 3;
 volatile int pwmCycleCount = 0;
 
 volatile const int editingTimeoutSeconds = 3;
-volatile const int powerDownSeconds = 30;
+volatile const int powerDownServoSeconds = 30; // 30 seconds before the servo is powered down
+volatile const int powerDownEscSeconds = 300; // 5 minutes before the ESC is powered down 
 volatile const int cyclesPerSecond = 49;
 
 const int motorSeconds[] = {2, 4, 5, 7, 10, 15};
@@ -157,6 +158,22 @@ void updateEndWipe(enum MachineState completionState) {
     }
 }
 
+void powerUp() {
+    DDRB |= 1 << ServoPWM; // enable the servo output
+    DDRB |= 1 << EscPWM; // enable the ESC output
+}
+
+void checkPowerDown(int pwmCycleCount) {
+    if (pwmCycleCount > powerDownServoSeconds * cyclesPerSecond) {
+        // power down the servo after the given delay
+        DDRB &= ~(1 << ServoPWM); // disable the servo output
+    }
+    if (pwmCycleCount > powerDownEscSeconds * cyclesPerSecond) {
+        // power down the ESC after the given delay
+        DDRB &= ~(1 << EscPWM); // disable the ESC output
+    }
+}
+
 ISR(TIMER0_OVF_vect) {
     timer0OverflowCounter = (timer0OverflowCounter > 3) ? 0 : timer0OverflowCounter + 1;
     if (timer0OverflowCounter == 1) {
@@ -227,6 +244,7 @@ ISR(TIMER0_OVF_vect) {
                 trippleFlash(pwmCycleCount);
                 break;
             case waitingButtonStart:
+                checkPowerDown(pwmCycleCount);
                 OCR0A = (OCR0A - 2 > MinOCR0A) ? OCR0A - 2 : MinOCR0A;
                 if (OCR0A <= MinOCR0A) {
                     if (buttonCountSinceLastChange > buttonDebounceValue) {
@@ -234,6 +252,7 @@ ISR(TIMER0_OVF_vect) {
                             if (buttonHasBeenUp == 1) {
                                 machineState = waitingButtonRelease;
                                 buttonHasBeenUp = 0;
+                                powerUp();
                             }
                         } else {
                             buttonHasBeenUp = 1;
@@ -307,18 +326,14 @@ ISR(TIMER0_OVF_vect) {
                 }
                 break;
             case waitingForRestart:
-                if (pwmCycleCount > powerDownSeconds * cyclesPerSecond) {
-                    // power down after the given delay
-                    DDRB &= ~(1 << ServoPWM); // disable the servo output
-                    DDRB &= ~(1 << EscPWM); // disable the ESC output
-                }
+                checkPowerDown(pwmCycleCount);
                 if (buttonCountSinceLastChange > buttonDebounceValue) {
                     if (ButtonIsDown) {
                         if (buttonHasBeenUp == 1) {
                             machineState = waitingButtonStart;
                             buttonHasBeenUp = 0;
-                            DDRB |= 1 << ServoPWM; // enable the servo output
-                            DDRB |= 1 << EscPWM; // enable the ESC output
+                            pwmCycleCount = 0;
+                            powerUp();
                         }
                     } else {
                         buttonHasBeenUp = 1;
