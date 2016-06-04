@@ -28,14 +28,13 @@
 #define TurnOnLed PORTB |= (1 << IndicatorLed);
 #define TurnOffLed PORTB &= ~(1 << IndicatorLed);
 
-#define DisplayMotorTime OCR0A = MinOCR0A + ((MaxOCR0A - MinOCR0A) * motorSecondsIndex / (motorSecondsSize - 1));
-#define DisplayDethermalTime OCR0A = MinOCR0A + ((MaxOCR0A - MinOCR0A) * dethermalSecondsIndex / (dethermalSecondsSize - 1));
-
 enum MachineState {
     setupSystem,
-    startWipe, // when the device resets we wipe the servo arm to release the DT lever so that a reset in midair does not prevent DT
-    endWipe,
+    startWipe1, // when the device resets we wipe the servo arm to release the DT lever so that a reset in midair does not prevent DT
+    endWipe1,
     editMotorTime,
+    startWipe2, // between the settings wipe to indicate the change
+    endWipe2,
     editDtTime,
     waitingButtonStart,
     waitingButtonRelease,
@@ -52,6 +51,9 @@ volatile int buttonDebounceValue = 3;
 volatile int pwmCycleCount = 0;
 
 volatile const int editingTimeoutSeconds = 3;
+volatile int editingTimeoutCount;
+volatile const int powerDownServoSeconds = 30; // 30 seconds before the servo is powered down
+volatile const int powerDownEscSeconds = 300; // 5 minutes before the ESC is powered down 
 volatile const int cyclesPerSecond = 49;
 
 const int motorSeconds[] = {2, 4, 5, 7, 10, 15};
@@ -140,6 +142,63 @@ ISR(PCINT0_vect) {
     buttonCountSinceLastChange = 0;
 }
 
+void updateStartWipe(enum MachineState completionState) {
+    OCR0A = (OCR0A + 2 < MaxOCR0A) ? OCR0A + 2 : MaxOCR0A;
+    if (OCR0A >= MaxOCR0A) {
+        machineState = completionState;
+        pwmCycleCount = 0;
+    }
+}
+
+void updateEndWipe(enum MachineState completionState) {
+    OCR0A = (OCR0A - 2 > MinOCR0A) ? OCR0A - 2 : MinOCR0A;
+    if (OCR0A <= MinOCR0A) {
+        machineState = completionState;
+        pwmCycleCount = 0;
+        editingTimeoutCount = editingTimeoutSeconds * cyclesPerSecond;
+    }
+}
+
+void displayMotorTime(int pwmCycleCount) {
+    // show the steps / divisions before resting at the selected value
+    if ((pwmCycleCount / 20) <= motorSecondsIndex) {
+        uint8_t stepValue = MinOCR0A + ((MaxOCR0A - MinOCR0A) * (pwmCycleCount / 20) / (motorSecondsSize - 1));
+        editingTimeoutCount = pwmCycleCount + (editingTimeoutSeconds * cyclesPerSecond);
+        OCR0A = stepValue;
+    } else {
+        uint8_t displayValue = MinOCR0A + ((MaxOCR0A - MinOCR0A) * motorSecondsIndex / (motorSecondsSize - 1));
+        OCR0A = displayValue;
+    }
+}
+
+void displayDethermalTime(int pwmCycleCount) {
+    // show the steps / divisions before resting at the selected value
+    if ((pwmCycleCount / 20) <= dethermalSecondsIndex) {
+        uint8_t stepValue = MinOCR0A + ((MaxOCR0A - MinOCR0A) * (pwmCycleCount / 20) / (dethermalSecondsSize - 1));
+        editingTimeoutCount = pwmCycleCount + (editingTimeoutSeconds * cyclesPerSecond);
+        OCR0A = stepValue;
+    } else {
+        uint8_t displayValue = MinOCR0A + ((MaxOCR0A - MinOCR0A) * dethermalSecondsIndex / (dethermalSecondsSize - 1));
+        OCR0A = displayValue;
+    }
+}
+
+void powerUp() {
+    DDRB |= 1 << ServoPWM; // enable the servo output
+    DDRB |= 1 << EscPWM; // enable the ESC output
+}
+
+void checkPowerDown(int pwmCycleCount) {
+    if (pwmCycleCount > powerDownServoSeconds * cyclesPerSecond) {
+        // power down the servo after the given delay
+        DDRB &= ~(1 << ServoPWM); // disable the servo output
+    }
+    if (pwmCycleCount > powerDownEscSeconds * cyclesPerSecond) {
+        // power down the ESC after the given delay
+        DDRB &= ~(1 << EscPWM); // disable the ESC output
+    }
+}
+
 ISR(TIMER0_OVF_vect) {
     timer0OverflowCounter = (timer0OverflowCounter > 3) ? 0 : timer0OverflowCounter + 1;
     if (timer0OverflowCounter == 1) {
@@ -152,27 +211,20 @@ ISR(TIMER0_OVF_vect) {
         switch (machineState) {
             case setupSystem:
                 break;
-            case startWipe:
-                OCR0A = (OCR0A + 2 < MaxOCR0A) ? OCR0A + 2 : MaxOCR0A;
-                if (OCR0A >= MaxOCR0A) {
-                    machineState = endWipe;
-                }
+            case startWipe1:
+                updateStartWipe(endWipe1);
                 break;
-            case endWipe:
-                OCR0A = (OCR0A - 2 > MinOCR0A) ? OCR0A - 2 : MinOCR0A;
-                if (OCR0A <= MinOCR0A) {
-                    machineState = editMotorTime;
-                    DisplayMotorTime;
-                }
+            case endWipe1:
+                updateEndWipe(editMotorTime);
                 break;
             case editMotorTime:
+                displayMotorTime(pwmCycleCount);
                 if (buttonCountSinceLastChange > buttonDebounceValue) {
                     if (ButtonIsDown) {
                         if (buttonHasBeenUp == 1) {
                             // adjust motorSeconds
                             motorSecondsIndex = (motorSecondsIndex < motorSecondsSize - 1) ? motorSecondsIndex + 1 : 0;
-                            DisplayMotorTime;
-                            pwmCycleCount = 0;
+                            editingTimeoutCount = pwmCycleCount + (editingTimeoutSeconds * cyclesPerSecond);
                             buttonHasBeenUp = 0;
                         }
                     } else {
@@ -180,21 +232,26 @@ ISR(TIMER0_OVF_vect) {
                     }
                     buttonCountSinceLastChange = 0;
                 }
-                if (pwmCycleCount > editingTimeoutSeconds * cyclesPerSecond) {
-                    machineState = editDtTime;
-                    DisplayDethermalTime;
+                if (pwmCycleCount > editingTimeoutCount) {
+                    machineState = startWipe2;
                     pwmCycleCount = 0;
                 }
                 doubleFlash(pwmCycleCount);
                 break;
+            case startWipe2:
+                updateStartWipe(endWipe2);
+                break;
+            case endWipe2:
+                updateEndWipe(editDtTime);
+                break;
             case editDtTime:
+                displayDethermalTime(pwmCycleCount);
                 if (buttonCountSinceLastChange > buttonDebounceValue) {
                     if (ButtonIsDown) {
                         if (buttonHasBeenUp == 1) {
                             // adjust dethermalSeconds
                             dethermalSecondsIndex = (dethermalSecondsIndex < dethermalSecondsSize - 1) ? dethermalSecondsIndex + 1 : 0;
-                            DisplayDethermalTime;
-                            pwmCycleCount = 0;
+                            editingTimeoutCount = pwmCycleCount + (editingTimeoutSeconds * cyclesPerSecond);
                             buttonHasBeenUp = 0;
                         }
                     } else {
@@ -202,7 +259,7 @@ ISR(TIMER0_OVF_vect) {
                     }
                     buttonCountSinceLastChange = 0;
                 }
-                if (pwmCycleCount > editingTimeoutSeconds * cyclesPerSecond) {
+                if (pwmCycleCount > editingTimeoutCount) {
                     // we leave the ESC powered down until this point because some ESCs have timing issues that the bootloader delay seems to affect
                     DDRB |= 1 << EscPWM; // set the ESC to output
                     machineState = waitingButtonStart;
@@ -212,6 +269,7 @@ ISR(TIMER0_OVF_vect) {
                 trippleFlash(pwmCycleCount);
                 break;
             case waitingButtonStart:
+                checkPowerDown(pwmCycleCount);
                 OCR0A = (OCR0A - 2 > MinOCR0A) ? OCR0A - 2 : MinOCR0A;
                 if (OCR0A <= MinOCR0A) {
                     if (buttonCountSinceLastChange > buttonDebounceValue) {
@@ -219,6 +277,7 @@ ISR(TIMER0_OVF_vect) {
                             if (buttonHasBeenUp == 1) {
                                 machineState = waitingButtonRelease;
                                 buttonHasBeenUp = 0;
+                                powerUp();
                             }
                         } else {
                             buttonHasBeenUp = 1;
@@ -292,11 +351,14 @@ ISR(TIMER0_OVF_vect) {
                 }
                 break;
             case waitingForRestart:
+                checkPowerDown(pwmCycleCount);
                 if (buttonCountSinceLastChange > buttonDebounceValue) {
                     if (ButtonIsDown) {
                         if (buttonHasBeenUp == 1) {
                             machineState = waitingButtonStart;
                             buttonHasBeenUp = 0;
+                            pwmCycleCount = 0;
+                            powerUp();
                         }
                     } else {
                         buttonHasBeenUp = 1;
@@ -356,7 +418,7 @@ int main(void) {
     loadSavedSettings();
     setupRegisters();
     sei();
-    machineState = startWipe;
+    machineState = startWipe1;
     while (1) {
     }
 }
