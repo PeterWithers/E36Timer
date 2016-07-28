@@ -17,6 +17,8 @@
 #define ServoPWM         PB0
 #define EscPWM           PB4
 #define ButtonPin        PB2
+#define RcDt1Pin         PB3 // on the attiny85 board the D- pin is pulled high by a 1k5 resistor and therefore should not trigger when no radio module is installed
+#define RcDt2Pin         PB5
 
 #define MaxOCR0A 129
 #define MinOCR0A 64
@@ -24,6 +26,7 @@
 //#define MinOCR0A 50
 
 #define ButtonIsDown ((PINB & (1 << ButtonPin)) == 0)
+#define RcDtIsActive ((PINB & (1 << RcDt1Pin)) == 0)
 
 #define TurnOnLed PORTB |= (1 << IndicatorLed);
 #define TurnOffLed PORTB &= ~(1 << IndicatorLed);
@@ -321,8 +324,11 @@ ISR(TIMER0_OVF_vect) {
                         TurnOnLed;
                         OCR0B = (OCR0B < MaxOCR0A) ? OCR0B + 1 : MaxOCR0A;
                     }
-                    // allow restarts starts
-                    if (buttonCountSinceLastChange > buttonDebounceValue) {
+                    if (RcDtIsActive) { // respond to an RC DT trigger
+                        machineState = triggerDT;
+                        pwmCycleCount = 0;
+                    } else if (buttonCountSinceLastChange > buttonDebounceValue) {
+                        // allow restarts starts
                         if (ButtonIsDown) {
                             if (buttonHasBeenUp == 1) {
                                 machineState = waitingButtonStart;
@@ -339,12 +345,16 @@ ISR(TIMER0_OVF_vect) {
                 }
                 break;
             case freeFlight:
-                if (pwmCycleCount / cyclesPerSecond > dethermalSeconds[dethermalSecondsIndex]) {
+                if (RcDtIsActive) { // respond to an RC DT trigger
+                    machineState = triggerDT;
+                    pwmCycleCount = 0;
+                } else if (pwmCycleCount / cyclesPerSecond > dethermalSeconds[dethermalSecondsIndex]) {
                     machineState = triggerDT;
                     pwmCycleCount = 0;
                 }
                 break;
             case triggerDT:
+                OCR0B = MinOCR0A; // power down the motor in the case of RC DT
                 OCR0A = (OCR0A + 2 < MaxOCR0A) ? OCR0A + 2 : MaxOCR0A;
                 if (OCR0A >= MaxOCR0A) {
                     machineState = waitingForRestart;
@@ -388,8 +398,12 @@ void setupRegisters() {
     DDRB |= 1 << ServoPWM; // set the servo to output
     DDRB &= ~(1 << ButtonPin); // set the button to input
     PORTB |= 1 << ButtonPin; // activate the internal pull up resistor
+    DDRB &= ~(1 << RcDt1Pin); // set the button to input
+    DDRB &= ~(1 << RcDt2Pin); // set the button to input
+    PORTB |= 1 << RcDt1Pin; // activate the internal pull up resistor
     GIMSK |= 1 << PCIE; // enable pin change interrupts
     PCMSK |= 1 << ButtonPin; // enable button interrupts 
+    PCMSK |= 1 << RcDt1Pin; // enable button interrupts 
     TIMSK |= 1 << OCIE0A; // enable timer0 compare match A interrupt
     TIMSK |= 1 << OCIE0B; // enable timer0 compare match B interrupt
     TIMSK |= 1 << TOIE0; // enable timer0 overflow interrupt
