@@ -59,7 +59,7 @@ volatile const int powerDownServoSeconds = 30; // 30 seconds before the servo is
 volatile const int powerDownEscSeconds = 300; // 5 minutes before the ESC is powered down 
 volatile const int cyclesPerSecond = 49;
 
-const int motorSeconds[] = {2, 4, 5, 7, 10, 15};
+const int motorSeconds[] = {2, 4, 5, 7, 10, 13, 15};
 const int motorSecondsSize = 6;
 volatile uint8_t motorSecondsIndex = 0;
 const int dethermalSeconds[] = {0, 5, 30, 60, 90, 120, 180, 240, 300};
