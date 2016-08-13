@@ -36,7 +36,7 @@ enum MachineState {
     throttleMax,
     waitingButtonRelease1,
     throttleMin,
-    waitingButtonRelease2
+    waitingButtonRelease2,
     startWipe1, // when the device resets we wipe the servo arm to release the DT lever so that a reset in midair does not prevent DT
     endWipe1,
     editMotorTime,

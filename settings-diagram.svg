@@ -19,7 +19,7 @@
         <text text-anchor="middle" font-family="serif" font-size="24" id="svg_155" y="347.22222" x="102.66667" stroke-width="0" stroke="black" fill="#000000">7</text>
         <path d="m143.99261,259.95113c-14.68074,-37.00676 -149.7168,-17.66063 -151.53745,22.60054" stroke="black" fill="none" stroke-width="5" marker-end="url(#head)" transform="rotate(-82.34234619140625 143.99261474609378,250.0867156982422) " id="svg_7"/>
         <text text-anchor="middle" font-family="serif" font-size="24" id="svg_166" y="391.88889" x="106.66667" stroke-width="0" stroke="black" fill="#000000">10</text>
-        <text text-anchor="middle" font-family="serif" font-size="24" id="svg_177" y="429.88889" x="131.33333" stroke-width="0" stroke="black" fill="#000000">15</text>
+        <text text-anchor="middle" font-family="serif" font-size="24" id="svg_177" y="429.88889" x="131.33333" stroke-width="0" stroke="black" fill="#000000">13</text>
         <path id="svg_4" d="m50.58135,434.52695c27.23529,-58.78645 132.19096,-55.56391 151.51339,-18.14548" stroke="black" fill="none" stroke-width="5" marker-end="url(#head)" transform="rotate(-82.34234619140625 50.58134841918953,411.8428344726563) "/>
         <path d="m31.5421,260.3594c-14.68074,-37.00676 -149.7168,-17.66063 -151.53745,22.60054" stroke="black" fill="none" stroke-width="5" marker-end="url(#head)" transform="rotate(-82.34234619140625 31.542100906372088,250.49497985839844) " id="svg_1"/>
         <text text-anchor="middle" font-family="serif" font-size="24" id="svg_6" y="464" x="318" stroke-width="0" stroke="black" fill="#000000">Start, Motor Time, Wipe, DT Time, Waiting, Motor, DT, Restart</text>
