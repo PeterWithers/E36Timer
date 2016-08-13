@@ -33,6 +33,10 @@
 
 enum MachineState {
     setupSystem,
+    throttleMax,
+    waitingButtonRelease1,
+    throttleMin,
+    waitingButtonRelease2
     startWipe1, // when the device resets we wipe the servo arm to release the DT lever so that a reset in midair does not prevent DT
     endWipe1,
     editMotorTime,
@@ -213,6 +217,47 @@ ISR(TIMER0_OVF_vect) {
         buttonCountSinceLastChange++;
         switch (machineState) {
             case setupSystem:
+                break;
+            case throttleMax:
+                OCR0A = (OCR0A + 2 < MaxOCR0A) ? OCR0A + 2 : MaxOCR0A;
+                OCR0B = OCR0A;
+                if (OCR0A >= MaxOCR0A) {
+                    DDRB |= 1 << EscPWM; // set the ESC to output
+                    machineState = waitingButtonRelease1;
+                }
+                break;
+            case waitingButtonRelease1:
+                if (buttonCountSinceLastChange > buttonDebounceValue) {
+                    if (ButtonIsDown) {
+                        if (buttonHasBeenUp == 1) {
+                            machineState = throttleMin;
+                            buttonHasBeenUp = 0;
+                        }
+                    } else {
+                        buttonHasBeenUp = 1;
+                    }
+                    buttonCountSinceLastChange = 0;
+                }
+                break;
+            case throttleMin:
+                OCR0A = (OCR0A - 2 > MinOCR0A) ? OCR0A - 2 : MinOCR0A;
+                OCR0B = OCR0A;
+                if (OCR0A <= MinOCR0A) {
+                    machineState = waitingButtonRelease2;
+                }
+                break;
+            case waitingButtonRelease2:
+                if (buttonCountSinceLastChange > buttonDebounceValue) {
+                    if (ButtonIsDown) {
+                        if (buttonHasBeenUp == 1) {
+                            machineState = throttleMax;
+                            buttonHasBeenUp = 0;
+                        }
+                    } else {
+                        buttonHasBeenUp = 1;
+                    }
+                    buttonCountSinceLastChange = 0;
+                }
                 break;
             case startWipe1:
                 updateStartWipe(endWipe1);
@@ -432,7 +477,11 @@ int main(void) {
     loadSavedSettings();
     setupRegisters();
     sei();
-    machineState = startWipe1;
+    if (ButtonIsDown) {
+        machineState = throttleMax;
+    } else {
+        machineState = startWipe1;
+    }
     while (1) {
     }
 }
