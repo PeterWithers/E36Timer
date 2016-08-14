@@ -82,7 +82,7 @@ const int dethermalSeconds[] = {0, 5, 30, 60, 90, 120, 180, 240, 300};
 // end measured actual times
 
 const int dethermalSecondsSize = 9;
-volatile uint8_t dethermalSecondsIndex = 0;
+volatile int dethermalSecondsIndex = 0;
 const int waitingEscValue = ((MaxPwm - MinPwm) / 3) + MinPwm;
 volatile int buttonHasBeenUp = 0;
 
@@ -443,7 +443,5 @@ void setup() {
         machineState = throttleMax;
     } else {
         machineState = startWipe1;
-    }
-    while (1) {
     }
 }
