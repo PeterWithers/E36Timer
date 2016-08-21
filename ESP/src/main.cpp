@@ -72,7 +72,7 @@ volatile unsigned long lastStateChangeMs = 0;
 volatile const unsigned long editingTimeoutMs = 3000;
 volatile const unsigned long escSpinDownMs = 1000;
 volatile const unsigned long escSpinUpMs = 1000;
-volatile const unsigned long servoWipeMs = 2000;
+volatile const unsigned long servoWipeMs = 1000;
 volatile const unsigned long displayStepMs = 500;
 volatile int editingStartMs = 0;
 volatile const unsigned long powerDownServoMs = 30 * 1000; // 30 seconds before the servo is powered down
@@ -236,7 +236,7 @@ void spinDownMotor() {
     int remainingTime = (motorSeconds[motorSecondsIndex] * 1000) - (millis() - lastStateChangeMs);
     int spinDownValue = MinPwm + (MaxPwm - MinPwm)*(remainingTime / escSpinDownMs);
     int escPosition = (remainingTime > 0) ? spinDownValue : MinPwm;
-//    escPosition = (escPosition > MinPwm) ? escPosition - 1 : MinPwm;
+    //    escPosition = (escPosition > MinPwm) ? escPosition - 1 : MinPwm;
     Serial.print(escPosition);
     Serial.print(",");
     escServo.write(escPosition);
@@ -255,11 +255,17 @@ void updateStartWipe(enum MachineState completionState) {
     }
 }
 
-void updateEndWipe(enum MachineState completionState) {
+int updateEndWipe() {
+    int servoValue = dtServo.read();
     int wipeValue = MaxPwm - (int) ((MaxPwm - MinPwm)*((millis() - lastStateChangeMs) / (float) servoWipeMs));
-    wipeValue = (wipeValue < MaxPwm) ? wipeValue : MaxPwm;
+    wipeValue = (wipeValue < servoValue) ? wipeValue : servoValue;
     wipeValue = (wipeValue > MinPwm) ? wipeValue : MinPwm;
     dtServo.write(wipeValue);
+    return wipeValue;
+}
+
+void updateEndWipe(enum MachineState completionState) {
+    int wipeValue = updateEndWipe();
     if (wipeValue <= MinPwm) {
         machineState = completionState;
         lastStateChangeMs = millis();
@@ -448,8 +454,7 @@ void loop() {
             break;
         case waitingButtonStart:
             checkPowerDown();
-            servoPosition = (servoPosition - 2 > MinPwm) ? servoPosition - 2 : MinPwm;
-            dtServo.write(servoPosition);
+            updateEndWipe();
             if (servoPosition <= MinPwm) {
                 if (millis() - buttonLastChangeMs > buttonDebounceMs) {
                     if (ButtonIsDown) {
@@ -541,7 +546,8 @@ void loop() {
         case triggerDT:
             escPosition = MinPwm; // power down the motor in the case of RC DT
             escServo.write(escPosition);
-            updateEndWipe(waitingForRestart);
+            // todo: should this skip the smooth servo movement and just jump to dt so that it is the quickest possible
+            updateStartWipe(waitingForRestart);
             break;
         case waitingForRestart:
             checkPowerDown();
