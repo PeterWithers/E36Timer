@@ -37,7 +37,8 @@ Servo escServo;
 
 #define ButtonIsDown (sonar.ping_cm() < 30)
 //#define ButtonIsDown (digitalRead(ButtonPin) == 0)
-#define RcDtIsActive (digitalRead(RcDt1Pin) == 0)
+#define RcDtIsActive false
+//#define RcDtIsActive (digitalRead(RcDt1Pin) == 0)
 
 #define TurnOnLed digitalWrite(IndicatorLed, 1)
 #define TurnOffLed digitalWrite(IndicatorLed, 0)
@@ -69,9 +70,10 @@ volatile unsigned long buttonDebounceMs = 100;
 
 volatile unsigned long lastStateChangeMs = 0;
 volatile const unsigned long editingTimeoutMs = 3000;
-volatile const unsigned long escSpinDownMs = 3000;
-volatile const unsigned long escSpinUpMs = 3000;
-volatile const unsigned long servoWipeMs = 3000;
+volatile const unsigned long escSpinDownMs = 1000;
+volatile const unsigned long escSpinUpMs = 1000;
+volatile const unsigned long servoWipeMs = 2000;
+volatile const unsigned long displayStepMs = 500;
 volatile int editingStartMs = 0;
 volatile const unsigned long powerDownServoMs = 30 * 1000; // 30 seconds before the servo is powered down
 volatile const unsigned long powerDownEscSeconds = 300 * 1000; // 5 minutes before the ESC is powered down
@@ -210,12 +212,40 @@ void sendTelemetry() {
     Serial.print(servoPosition);
     Serial.print(", escPosition: ");
     Serial.print(escPosition);
+    Serial.print(", dethermalSeconds: ");
+    Serial.print(dethermalSeconds[dethermalSecondsIndex]);
+    Serial.print(", motorSeconds: ");
+    Serial.print(motorSeconds[motorSecondsIndex]);
     Serial.print(", lastStateChangeMs: ");
     Serial.println(millis() - lastStateChangeMs);
 }
 
+void spinUpMotor(int targetSpeed) {
+    int escValue = escServo.read();
+    if (targetSpeed > escValue) {
+        int wipeValue = escValue + (int) ((targetSpeed - escValue)*((millis() - lastStateChangeMs) / (float) escSpinUpMs));
+        wipeValue = (wipeValue < targetSpeed) ? wipeValue : targetSpeed;
+        wipeValue = (wipeValue > escValue) ? wipeValue : escValue;
+        escServo.write(wipeValue);
+    } else {
+        escServo.write(targetSpeed);
+    }
+}
+
+void spinDownMotor() {
+    int remainingTime = (motorSeconds[motorSecondsIndex] * 1000) - (millis() - lastStateChangeMs);
+    int spinDownValue = MinPwm + (MaxPwm - MinPwm)*(remainingTime / escSpinDownMs);
+    int escPosition = (remainingTime > 0) ? spinDownValue : MinPwm;
+//    escPosition = (escPosition > MinPwm) ? escPosition - 1 : MinPwm;
+    Serial.print(escPosition);
+    Serial.print(",");
+    escServo.write(escPosition);
+}
+
 void updateStartWipe(enum MachineState completionState) {
     int wipeValue = MinPwm + (int) ((MaxPwm - MinPwm)*((millis() - lastStateChangeMs) / (float) servoWipeMs));
+    wipeValue = (wipeValue < MaxPwm) ? wipeValue : MaxPwm;
+    wipeValue = (wipeValue > MinPwm) ? wipeValue : MinPwm;
     dtServo.write(wipeValue);
     if (wipeValue >= MaxPwm) {
         machineState = completionState;
@@ -227,6 +257,8 @@ void updateStartWipe(enum MachineState completionState) {
 
 void updateEndWipe(enum MachineState completionState) {
     int wipeValue = MaxPwm - (int) ((MaxPwm - MinPwm)*((millis() - lastStateChangeMs) / (float) servoWipeMs));
+    wipeValue = (wipeValue < MaxPwm) ? wipeValue : MaxPwm;
+    wipeValue = (wipeValue > MinPwm) ? wipeValue : MinPwm;
     dtServo.write(wipeValue);
     if (wipeValue <= MinPwm) {
         machineState = completionState;
@@ -238,11 +270,11 @@ void updateEndWipe(enum MachineState completionState) {
 
 void displayMotorTime() {
     // show the steps / divisions before resting at the selected value
-    int indexToDisplay = (millis() - lastStateChangeMs) / 1000;
+    int indexToDisplay = (millis() - lastStateChangeMs) / displayStepMs;
     int servoPosition;
     if (indexToDisplay <= motorSecondsIndex) {
         int stepValue = MinPwm + ((MaxPwm - MinPwm) * (indexToDisplay) / (motorSecondsSize - 1));
-        lastStateChangeMs = millis();
+        editingStartMs = millis();
         servoPosition = stepValue;
     } else {
         int displayValue = MinPwm + ((MaxPwm - MinPwm) * motorSecondsIndex / (motorSecondsSize - 1));
@@ -253,7 +285,7 @@ void displayMotorTime() {
 
 void displayDethermalTime() {
     // show the steps / divisions before resting at the selected value
-    int indexToDisplay = (millis() - lastStateChangeMs) / 1000;
+    int indexToDisplay = (millis() - lastStateChangeMs) / displayStepMs;
     int servoPosition;
     if (indexToDisplay <= dethermalSecondsIndex) {
         int stepValue = MinPwm + ((MaxPwm - MinPwm) * (indexToDisplay) / (dethermalSecondsSize - 1));
@@ -267,12 +299,12 @@ void displayDethermalTime() {
 }
 
 void powerUpDt() {
-    dtServo.attach(ServoPWM); // enable the servo output
+    dtServo.attach(ServoPWM, 1000, 2000); // enable the servo output
     Serial.println("servo attach");
 }
 
 void powerUpEsc() {
-    escServo.attach(EscPWM); // enable the ESC output
+    escServo.attach(EscPWM, 1000, 2000); // enable the ESC output
     Serial.println("esc attach");
 }
 
@@ -282,17 +314,16 @@ void powerUp() {
 }
 
 void checkPowerDown() {
-    if (millis() > lastStateChangeMs + powerDownServoMs) {
+    if (millis() - lastStateChangeMs > powerDownServoMs) {
         if (dtServo.attached()) {
             // power down the servo after the given delay
             dtServo.detach(); // disable the servo output
             Serial.println("servo detach");
         }
     }
-    if (millis() > lastStateChangeMs + powerDownEscSeconds) {
+    if (millis() - lastStateChangeMs > powerDownEscSeconds) {
         if (escServo.attached()) {
             // power down the ESC after the given delay
-
             escServo.detach(); // disable the ESC output
             Serial.println("esc detach");
         }
@@ -312,6 +343,7 @@ void loop() {
                 powerUpEsc();
                 escServo.write(servoPosition);
                 machineState = waitingButtonRelease1;
+                lastStateChangeMs = millis();
             }
             sendTelemetry();
             break;
@@ -335,6 +367,7 @@ void loop() {
             escServo.write(servoPosition);
             if (servoPosition <= MinPwm) {
                 machineState = waitingButtonRelease2;
+                lastStateChangeMs = millis();
             }
             sendTelemetry();
             break;
@@ -367,6 +400,7 @@ void loop() {
                         motorSecondsIndex = (motorSecondsIndex < motorSecondsSize - 1) ? motorSecondsIndex + 1 : 0;
                         editingStartMs = millis();
                         buttonHasBeenUp = 0;
+                        sendTelemetry();
                     }
                 } else {
                     buttonHasBeenUp = 1;
@@ -395,6 +429,7 @@ void loop() {
                         dethermalSecondsIndex = (dethermalSecondsIndex < dethermalSecondsSize - 1) ? dethermalSecondsIndex + 1 : 0;
                         lastStateChangeMs = millis();
                         buttonHasBeenUp = 0;
+                        sendTelemetry();
                     }
                 } else {
                     buttonHasBeenUp = 1;
@@ -420,6 +455,7 @@ void loop() {
                     if (ButtonIsDown) {
                         if (buttonHasBeenUp == 1) {
                             machineState = waitingButtonRelease;
+                            lastStateChangeMs = millis();
                             buttonHasBeenUp = 0;
                             powerUp();
                             sendTelemetry();
@@ -433,14 +469,14 @@ void loop() {
             }
             break;
         case waitingButtonRelease:
-            escPosition = (escPosition < waitingEscValue) ? escPosition + 1 : waitingEscValue; // spin up the motor to the waiting speed
-            escServo.write(escPosition);
+            spinUpMotor(waitingEscValue); // spin up the motor to the waiting speed
             if (millis() - buttonLastChangeMs > buttonDebounceMs) {
                 if (!ButtonIsDown) {
                     if (buttonHasBeenUp == 0) {
                         machineState = motorRun;
                         lastStateChangeMs = millis();
                         buttonHasBeenUp = 1;
+                        sendTelemetry();
                     }
                 } else {
                     buttonHasBeenUp = 0;
@@ -448,16 +484,10 @@ void loop() {
                 buttonLastChangeMs = millis();
             }
             fastFlash();
-            sendTelemetry();
             break;
         case motorRun:
             if (millis() - lastStateChangeMs + escSpinDownMs > motorSeconds[motorSecondsIndex] * 1000) {
-                // power down and switch state
-                int remainingTime = (motorSeconds[motorSecondsIndex] * 1000) - (millis() - lastStateChangeMs);
-                int spinDownValue = MinPwm + (MaxPwm - MinPwm)*(remainingTime / escSpinDownMs);
-                escPosition = (remainingTime > 0) ? spinDownValue : MinPwm;
-                escPosition = (escPosition > MinPwm) ? escPosition - 1 : MinPwm;
-                escServo.write(escPosition);
+                spinDownMotor(); // power down and switch state                
                 if (escPosition <= MinPwm) {
                     TurnOffLed;
                     machineState = freeFlight;
@@ -466,16 +496,13 @@ void loop() {
                 } else {
                     TurnOnLed;
                 }
-                sendTelemetry();
+                //                sendTelemetry();
             } else {
                 if (escPosition >= MaxPwm) {
                     TurnOffLed;
                 } else {
                     TurnOnLed;
-                    int spinUpValue = MaxPwm - (MaxPwm - MinPwm)*(lastStateChangeMs / escSpinDownMs);
-                    escPosition = (escPosition < MaxPwm) ? spinUpValue : MaxPwm;
-                    escServo.write(escPosition);
-                    sendTelemetry();
+                    spinUpMotor(MaxPwm);
                 }
                 if (RcDtIsActive) { // respond to an RC DT trigger
                     machineState = triggerDT;
