@@ -15,6 +15,15 @@
 #include <Servo.h>
 // todo: this include and related defines are temporary
 //#include <NewPing.h>
+#include <ESP8266WiFi.h>
+#include <DNSServer.h>
+#include <ESP8266WebServer.h>
+
+
+const byte DNS_PORT = 53;
+IPAddress apIP(192, 168, 1, 1);
+DNSServer dnsServer;
+ESP8266WebServer webServer(80);
 
 //#define TRIGGER_PIN  3
 //#define ECHO_PIN     2
@@ -244,6 +253,115 @@ void sendTelemetry() {
     Serial.print(motorSeconds[motorSecondsIndex]);
     Serial.print(", lastStateChangeMs: ");
     Serial.println(millis() - lastStateChangeMs);
+}
+
+String getTelemetryString() {
+    String telemetryString = "machineState: ";
+    switch (machineState) {
+        case setupSystem:
+            telemetryString += "setupSystem";
+            break;
+        case throttleMax:
+            telemetryString += "throttleMax";
+            break;
+        case waitingButtonRelease1:
+            telemetryString += "waitingButtonRelease1";
+            break;
+        case throttleMin:
+            telemetryString += "throttleMin";
+            break;
+        case waitingButtonRelease2:
+            telemetryString += "waitingButtonRelease2";
+            break;
+        case startWipe1:
+            telemetryString += "startWipe1";
+            break;
+        case endWipe1:
+            telemetryString += "endWipe1";
+            break;
+        case editMotorTime:
+            telemetryString += "editMotorTime";
+            break;
+        case startWipe2:
+            telemetryString += "startWipe2";
+            break;
+        case endWipe2:
+            telemetryString += "endWipe2";
+            break;
+        case editDtTime:
+            telemetryString += "editDtTime";
+            break;
+        case waitingButtonStart:
+            telemetryString += "waitingButtonStart";
+            break;
+        case waitingButtonRelease:
+            telemetryString += "waitingButtonRelease";
+            break;
+        case motorRun:
+            telemetryString += "motorRun";
+            break;
+        case freeFlight:
+            telemetryString += "freeFlight";
+            break;
+        case triggerDT:
+            telemetryString += "triggerDT";
+            break;
+        case waitingForRestart:
+            telemetryString += "waitingForRestart";
+            break;
+    }
+    int servoPosition = dtServo.read();
+    int escPosition = escServo.read();
+    telemetryString += ", servoPosition: ";
+    telemetryString += servoPosition;
+    telemetryString += ", escPosition: ";
+    telemetryString += escPosition;
+    telemetryString += ", dethermalSeconds: ";
+    telemetryString += dethermalSeconds[dethermalSecondsIndex];
+    telemetryString += ", motorSeconds: ";
+    telemetryString += motorSeconds[motorSecondsIndex];
+    telemetryString += ", lastStateChangeMs: ";
+    telemetryString += (millis() - lastStateChangeMs);
+    return telemetryString;
+}
+
+void getTelemetry() {
+    Serial.print("getTelemetry");
+    webServer.send(200, "text/html", getTelemetryString());
+}
+
+void defaultPage() {
+    Serial.print("defaultPage");
+    webServer.send(200, "text/html", "<!DOCTYPE html><html><head><title>E36</title>"
+            //            "<script src='https://ajax.googleapis.com/ajax/libs/jquery/3.1.1/jquery.min.js'></script>"
+            //            "<script>"
+            //            "$('#remoteButton').click(function(){"
+            //            "$('#buttonResult').load('button');"
+            //            "$('#telemetryResult').load('telemetry');"
+            //            "});</script>"
+            "</head><body>"
+            "<h1>Telemetry Data</h1>"
+            "<button id='remoteButton'>remoteButton</button>"
+            "<div id='buttonResult'>buttonResult</div>"
+            "<br/>"
+            "<a href='triggerDT'>triggerDT</a><br/>"
+            "<a href='motorRun'>motorRun</a><br/>"
+            "<br/>"
+            "<button id='buttonUpdate' onclick='location.reload();'>update</button>"
+            "<div id='telemetryResult'>"
+            + getTelemetryString() +
+            "</div>"
+            "</body></html>");
+}
+
+void getTriggerDT() {
+    machineState = triggerDT;
+    defaultPage();
+}
+
+void getMotorRun() {
+    machineState = motorRun;
+    defaultPage();
 }
 
 void spinUpMotor(int targetSpeed) {
@@ -594,6 +712,8 @@ void loop() {
             fastFlash();
             break;
     }
+    dnsServer.processNextRequest();
+    webServer.handleClient();
 }
 
 void setupRegisters() {
@@ -608,6 +728,8 @@ void setupRegisters() {
 
 void setup() {
     Serial.begin(115200);
+    delay(10);
+    Serial.print("E36");
     EEPROM.begin(4);
     loadSavedSettings();
     setupRegisters();
@@ -620,4 +742,18 @@ void setup() {
         powerUpDt();
         sendTelemetry();
     }
+    WiFi.mode(WIFI_AP);
+    WiFi.softAPConfig(apIP, apIP, IPAddress(255, 255, 255, 0));
+    WiFi.softAP("E36 Timer");
+
+    // if DNSServer is started with "*" for domain name, it will reply with
+    // provided IP to all DNS request
+    dnsServer.start(DNS_PORT, "*", apIP);
+
+    webServer.on("/telemetry", getTelemetry);
+    webServer.on("/triggerDT", getTriggerDT);
+    webServer.on("/motorRun", getMotorRun);
+    // replay to all requests with same HTML
+    webServer.onNotFound(defaultPage);
+    webServer.begin();
 }
