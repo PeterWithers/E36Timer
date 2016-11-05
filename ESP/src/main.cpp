@@ -9,25 +9,26 @@
  * Author : Peter Withers <peter@gthb-bambooradical.com>
  */
 
-#include <Arduino.h>
-#include <eeprom.h>
+//#include <Arduino.h>
+//#include <eeprom.h>
+#include <EEPROM.h>
 #include <Servo.h>
-// todo: this include and related defines are temporary 
-#include <NewPing.h> 
+// todo: this include and related defines are temporary
+//#include <NewPing.h>
 
-#define TRIGGER_PIN  3
-#define ECHO_PIN     2
-#define MAX_DISTANCE 400
+//#define TRIGGER_PIN  3
+//#define ECHO_PIN     2
+//#define MAX_DISTANCE 400
 
-NewPing sonar(TRIGGER_PIN, ECHO_PIN, MAX_DISTANCE);
+//NewPing sonar(TRIGGER_PIN, ECHO_PIN, MAX_DISTANCE);
 // end temporary defines
 
-#define IndicatorLed     13
-#define ServoPWM         15
-#define EscPWM           14
+#define IndicatorLed     2
+#define ServoPWM         4
+#define EscPWM           5
 #define ButtonPin        12
-#define RcDt1Pin         11
-#define RcDt2Pin         10
+#define RcDt1Pin         13
+#define RcDt2Pin         14
 
 Servo dtServo;
 Servo escServo;
@@ -35,8 +36,8 @@ Servo escServo;
 #define MaxPwm 180
 #define MinPwm 0
 
-#define ButtonIsDown (sonar.ping_cm() < 30)
-//#define ButtonIsDown (digitalRead(ButtonPin) == 0)
+//#define ButtonIsDown (sonar.ping_cm() < 30)
+#define ButtonIsDown (digitalRead(ButtonPin) == 0)
 #define RcDtIsActive false
 //#define RcDtIsActive (digitalRead(RcDt1Pin) == 0)
 
@@ -135,9 +136,34 @@ void trippleFlash() {
 }
 
 void saveSettings() {
+    boolean changeMade = false;
+    Serial.print(" motorSecondsIndex: ");
+    Serial.print(motorSecondsIndex);
+    Serial.print(" EEPROM.read(1): ");
+    Serial.print(EEPROM.read(1));
+
     // using update not write to preserve eeprom life
-    EEPROM.write(1, motorSecondsIndex);
-    EEPROM.write(2, dethermalSecondsIndex);
+    // update does not seem to exist in the ESP library so we test before setting to preserve the eeprom
+    if (EEPROM.read(1) != motorSecondsIndex) {
+        Serial.print(" motorSecondsIndex storing changes");
+        EEPROM.write(1, motorSecondsIndex);
+        changeMade = true;
+    } else {
+        Serial.print(" motorSecondsIndex unchanged");
+    }
+    if (EEPROM.read(2) != dethermalSecondsIndex) {
+        Serial.print(" dethermalSecondsIndex storing changes");
+        EEPROM.write(2, dethermalSecondsIndex);
+        changeMade = true;
+    } else {
+        Serial.print(" dethermalSecondsIndex unchanged");
+    }
+    if (changeMade) {
+        Serial.print(" writing changes");
+        EEPROM.commit();
+    } else {
+        Serial.print(" unchanged no commit");
+    }
 }
 
 void loadSavedSettings() {
@@ -492,7 +518,7 @@ void loop() {
             break;
         case motorRun:
             if (millis() - lastStateChangeMs + escSpinDownMs > motorSeconds[motorSecondsIndex] * 1000) {
-                spinDownMotor(); // power down and switch state                
+                spinDownMotor(); // power down and switch state
                 if (escPosition <= MinPwm) {
                     TurnOffLed;
                     machineState = freeFlight;
@@ -581,7 +607,8 @@ void setupRegisters() {
 }
 
 void setup() {
-    Serial.begin(57600);
+    Serial.begin(115200);
+    EEPROM.begin(4);
     loadSavedSettings();
     setupRegisters();
     attachInterrupt(1, pinChangeInterrupt, CHANGE);
