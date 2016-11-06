@@ -334,6 +334,18 @@ String getTelemetryString() {
     telemetryString += "hasPressureSensor: ";
     telemetryString += hasPressureSensor;
     telemetryString += "<br/>";
+    telemetryString += "ADC: ";
+    telemetryString += analogRead(A0);
+    telemetryString += "<br/>";
+    telemetryString += "voltage: ";
+    telemetryString += (analogRead(A0)/69.0);
+    telemetryString += "v";
+    // 339 @ 4.946v
+    // 286 @ 4.142v
+    // voltage divider: 39k+3k
+    // 339÷4.496=68.5402
+    // 286÷4.142=69,048768711
+    telemetryString += "<br/>";
     telemetryString += "lastStateChangeMs: ";
     telemetryString += (millis() - lastStateChangeMs);
     telemetryString += "<br/>";
@@ -711,6 +723,7 @@ void setupRegisters() {
     //    powerUp();
     dtServo.write(MinPwm); // set the servo to the minimum for now
     escServo.write(MinPwm); // set the ESC to the minimum for now
+    pinMode(A0, INPUT);
 }
 
 void getTelemetry() {
@@ -748,7 +761,7 @@ void defaultPage() {
             "<a href='motorRun'>motorRun</a><br/><br/>"
             "<a href='triggerDT'>triggerDT</a><br/><br/>"
             "<a href='restart'>restart</a><br/><br/><br/>"
-            "<br/>"
+//            "<br/>"
             //            "<button id='buttonUpdate' onclick='location.reload();'>update</button>"
             "<div id='telemetryResult'>"
             + getTelemetryString() +
