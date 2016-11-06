@@ -310,18 +310,24 @@ String getTelemetryString() {
             telemetryString += "waitingForRestart";
             break;
     }
+    telemetryString += "<br/>";
     int servoPosition = dtServo.read();
     int escPosition = escServo.read();
-    telemetryString += ", servoPosition: ";
+    telemetryString += "servoPosition: ";
     telemetryString += servoPosition;
-    telemetryString += ", escPosition: ";
+    telemetryString += "<br/>";
+    telemetryString += "escPosition: ";
     telemetryString += escPosition;
-    telemetryString += ", dethermalSeconds: ";
+    telemetryString += "<br/>";
+    telemetryString += "dethermalSeconds: ";
     telemetryString += dethermalSeconds[dethermalSecondsIndex];
-    telemetryString += ", motorSeconds: ";
+    telemetryString += "<br/>";
+    telemetryString += "motorSeconds: ";
     telemetryString += motorSeconds[motorSecondsIndex];
-    telemetryString += ", lastStateChangeMs: ";
+    telemetryString += "<br/>";
+    telemetryString += "lastStateChangeMs: ";
     telemetryString += (millis() - lastStateChangeMs);
+    telemetryString += "<br/>";
     return telemetryString;
 }
 
@@ -354,21 +360,62 @@ void defaultPage() {
             "</script>"
             "</head><body>"
             "<h1>Telemetry Data</h1>"
-            "<button id='remoteButton'>remoteButton</button>"
-            "<div id='buttonResult'>buttonResult</div>"
+            //            "<button id='remoteButton'>remoteButton</button>"
+            //            "<div id='buttonResult'>buttonResult</div>"
             "<br/>"
-            "<a href='triggerDT'>triggerDT</a><br/>"
-            "<a href='motorRun'>motorRun</a><br/>"
+            "<a href='motorRun'>motorRun</a><br/><br/>"
+            "<a href='triggerDT'>triggerDT</a><br/><br/>"
+            "<a href='restart'>restart</a><br/><br/><br/>"
             "<br/>"
-            "<button id='buttonUpdate' onclick='location.reload();'>update</button>"
+            //            "<button id='buttonUpdate' onclick='location.reload();'>update</button>"
             "<div id='telemetryResult'>"
             + getTelemetryString() +
             "</div>"
+            "<a href='motorDecrease'>motorDecrease</a>&nbsp;"
+            "<a href='motorIncrease'>motorIncrease</a><br/><br/>"
+            "<a href='dtDecrease'>dtDecrease</a>&nbsp;"
+            "<a href='dtIncrease'>dtIncrease</a><br/><br/>"
+            "<a href='saveChanges'>saveChanges</a><br/><br/>"
             "</body></html>");
+}
+
+void motorDecrease() {
+    motorSecondsIndex--;
+    motorSecondsIndex = (motorSecondsIndex < 0) ? 0 : motorSecondsIndex;
+    defaultPage();
+}
+
+void motorIncrease() {
+    motorSecondsIndex++;
+    motorSecondsIndex = (motorSecondsIndex < motorSecondsSize) ? motorSecondsIndex : motorSecondsSize - 1;
+    defaultPage();
+}
+
+void dtDecrease() {
+    dethermalSecondsIndex--;
+    dethermalSecondsIndex = (dethermalSecondsIndex < 0) ? 0 : dethermalSecondsIndex;
+    defaultPage();
+}
+
+void dtIncrease() {
+    dethermalSecondsIndex++;
+    dethermalSecondsIndex = (dethermalSecondsIndex < dethermalSecondsSize) ? dethermalSecondsIndex : dethermalSecondsSize - 1;
+    defaultPage();
+}
+
+void saveChanges() {
+    saveSettings();
+    machineState = startWipe1;
+    defaultPage();
 }
 
 void getTriggerDT() {
     machineState = triggerDT;
+    defaultPage();
+}
+
+void getWaitingButtonStart() {
+    machineState = waitingButtonStart;
     defaultPage();
 }
 
@@ -766,7 +813,12 @@ void setup() {
     webServer.on("/telemetry", getTelemetry);
     webServer.on("/triggerDT", getTriggerDT);
     webServer.on("/motorRun", getMotorRun);
-    // replay to all requests with same HTML
+    webServer.on("/restart", getWaitingButtonStart);
+    webServer.on("/motorDecrease", motorDecrease);
+    webServer.on("/motorIncrease", motorIncrease);
+    webServer.on("/dtDecrease", dtDecrease);
+    webServer.on("/dtIncrease", dtIncrease);
+    webServer.on("/saveChanges", saveChanges);
     webServer.onNotFound(defaultPage);
     webServer.begin();
 }
