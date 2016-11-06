@@ -18,12 +18,18 @@
 #include <ESP8266WiFi.h>
 #include <DNSServer.h>
 #include <ESP8266WebServer.h>
+//#include <SFE_BMP180.h>
+//#include <Wire.h>
 
 
 const byte DNS_PORT = 53;
 IPAddress apIP(192, 168, 1, 1);
 DNSServer dnsServer;
 ESP8266WebServer webServer(80);
+
+//SFE_BMP180 pressureSensor;
+//double baselinePressure;
+bool hasPressureSensor = false;
 
 //#define TRIGGER_PIN  3
 //#define ECHO_PIN     2
@@ -42,8 +48,8 @@ ESP8266WebServer webServer(80);
 Servo dtServo;
 Servo escServo;
 
-#define MaxPwm 180
-#define MinPwm 0
+#define MaxPwm 141
+#define MinPwm 44
 
 //#define ButtonIsDown (sonar.ping_cm() < 30)
 #define ButtonIsDown (digitalRead(ButtonPin) == 0)
@@ -325,6 +331,9 @@ String getTelemetryString() {
     telemetryString += "motorSeconds: ";
     telemetryString += motorSeconds[motorSecondsIndex];
     telemetryString += "<br/>";
+    telemetryString += "hasPressureSensor: ";
+    telemetryString += hasPressureSensor;
+    telemetryString += "<br/>";
     telemetryString += "lastStateChangeMs: ";
     telemetryString += (millis() - lastStateChangeMs);
     telemetryString += "<br/>";
@@ -345,15 +354,20 @@ void spinUpMotor(int targetSpeed) {
 
 void spinDownMotor() {
     int remainingTime = (motorSeconds[motorSecondsIndex] * 1000) - (millis() - lastStateChangeMs);
-    int spinDownValue = MinPwm + (MaxPwm - MinPwm)*(remainingTime / escSpinDownMs);
+    int spinDownValue = MinPwm + ((MaxPwm - MinPwm)*((float) remainingTime / (float) escSpinDownMs));
     int escPosition = (remainingTime > 0) ? spinDownValue : MinPwm;
     //    escPosition = (escPosition > MinPwm) ? escPosition - 1 : MinPwm;
     escServo.write(escPosition);
-    if (escPosition != 0) {
-        Serial.print(escPosition);
-        Serial.print(",");
-        escServo.write(escPosition);
-    }
+    //    if (escPosition > MinPwm) {
+    //    Serial.print("remainingTime: ");
+    //    Serial.print(remainingTime);
+    //    Serial.print(", spinDownValue: ");
+    //    Serial.print(spinDownValue);
+    //    Serial.print(", escPosition: ");
+    //    Serial.print(escPosition);
+    //    Serial.print(",");
+    //    }
+    escServo.write(escPosition);
 }
 
 void updateStartWipe(enum MachineState completionState) {
@@ -647,11 +661,14 @@ void loop() {
             }
             break;
         case freeFlight:
+//            sendTelemetry();
             if (RcDtIsActive) { // respond to an RC DT trigger
+                Serial.print("RcDtIsActive ");
                 machineState = triggerDT;
                 lastStateChangeMs = millis();
                 sendTelemetry();
             } else if (millis() - lastStateChangeMs > dethermalSeconds[dethermalSecondsIndex]*1000) {
+                Serial.print("dethermalSeconds ");
                 machineState = triggerDT;
                 lastStateChangeMs = millis();
                 sendTelemetry();
@@ -697,12 +714,12 @@ void setupRegisters() {
 }
 
 void getTelemetry() {
-//    Serial.print("getTelemetry");
+    //    Serial.print("getTelemetry");
     webServer.send(200, "text/html", getTelemetryString());
 }
 
 void defaultPage() {
-    Serial.print("defaultPage");
+    //Serial.print("defaultPage");
     webServer.send(200, "text/html", "<!DOCTYPE html><html><head><title>E36</title>"
             //            "<script src='https://ajax.googleapis.com/ajax/libs/jquery/3.1.1/jquery.min.js'></script>"
             "<script>"
@@ -747,24 +764,28 @@ void defaultPage() {
 void motorDecrease() {
     motorSecondsIndex--;
     motorSecondsIndex = (motorSecondsIndex < 0) ? 0 : motorSecondsIndex;
+    //displayMotorTime();
     defaultPage();
 }
 
 void motorIncrease() {
     motorSecondsIndex++;
     motorSecondsIndex = (motorSecondsIndex < motorSecondsSize) ? motorSecondsIndex : motorSecondsSize - 1;
+    //displayMotorTime();
     defaultPage();
 }
 
 void dtDecrease() {
     dethermalSecondsIndex--;
     dethermalSecondsIndex = (dethermalSecondsIndex < 0) ? 0 : dethermalSecondsIndex;
+    //displayDethermalTime();
     defaultPage();
 }
 
 void dtIncrease() {
     dethermalSecondsIndex++;
     dethermalSecondsIndex = (dethermalSecondsIndex < dethermalSecondsSize) ? dethermalSecondsIndex : dethermalSecondsSize - 1;
+    //displayDethermalTime();
     defaultPage();
 }
 
@@ -830,4 +851,13 @@ void setup() {
     webServer.on("/saveChanges", saveChanges);
     webServer.onNotFound(defaultPage);
     webServer.begin();
+
+    //    hasPressureSensor = pressureSensor.begin();
+    //    if (hasPressureSensor) {
+    //        baselinePressure = getPressure();
+    //
+    //        Serial.print("baseline pressure: ");
+    //        Serial.print(baselinePressure);
+    //        Serial.println(" mb");
+    //    }
 }
