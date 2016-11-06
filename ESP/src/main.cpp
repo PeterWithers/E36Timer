@@ -331,99 +331,6 @@ String getTelemetryString() {
     return telemetryString;
 }
 
-void getTelemetry() {
-    Serial.print("getTelemetry");
-    webServer.send(200, "text/html", getTelemetryString());
-}
-
-void defaultPage() {
-    Serial.print("defaultPage");
-    webServer.send(200, "text/html", "<!DOCTYPE html><html><head><title>E36</title>"
-            //            "<script src='https://ajax.googleapis.com/ajax/libs/jquery/3.1.1/jquery.min.js'></script>"
-            "<script>"
-            //            "$('#remoteButton').click(function(){"
-            //            "$('#buttonResult').load('button');"
-            //            "$('#telemetryResult').load('telemetry');"
-            //                        "});"
-            "function requestUpdate() {"
-            "var xhttp = new XMLHttpRequest();"
-            "xhttp.onreadystatechange = function() {"
-            "if (this.readyState == 4 && this.status == 200) {"
-            "document.getElementById('telemetryResult').innerHTML = this.responseText;"
-            "setTimeout(requestUpdate, 1000);"
-            "}"
-            "};"
-            "xhttp.open('GET', 'telemetry', true);"
-            "xhttp.send();"
-            "}"
-            "setTimeout(requestUpdate, 1000)"
-            "</script>"
-            "</head><body>"
-            "<h1>Telemetry Data</h1>"
-            //            "<button id='remoteButton'>remoteButton</button>"
-            //            "<div id='buttonResult'>buttonResult</div>"
-            "<br/>"
-            "<a href='motorRun'>motorRun</a><br/><br/>"
-            "<a href='triggerDT'>triggerDT</a><br/><br/>"
-            "<a href='restart'>restart</a><br/><br/><br/>"
-            "<br/>"
-            //            "<button id='buttonUpdate' onclick='location.reload();'>update</button>"
-            "<div id='telemetryResult'>"
-            + getTelemetryString() +
-            "</div>"
-            "<a href='motorDecrease'>motorDecrease</a>&nbsp;"
-            "<a href='motorIncrease'>motorIncrease</a><br/><br/>"
-            "<a href='dtDecrease'>dtDecrease</a>&nbsp;"
-            "<a href='dtIncrease'>dtIncrease</a><br/><br/>"
-            "<a href='saveChanges'>saveChanges</a><br/><br/>"
-            "</body></html>");
-}
-
-void motorDecrease() {
-    motorSecondsIndex--;
-    motorSecondsIndex = (motorSecondsIndex < 0) ? 0 : motorSecondsIndex;
-    defaultPage();
-}
-
-void motorIncrease() {
-    motorSecondsIndex++;
-    motorSecondsIndex = (motorSecondsIndex < motorSecondsSize) ? motorSecondsIndex : motorSecondsSize - 1;
-    defaultPage();
-}
-
-void dtDecrease() {
-    dethermalSecondsIndex--;
-    dethermalSecondsIndex = (dethermalSecondsIndex < 0) ? 0 : dethermalSecondsIndex;
-    defaultPage();
-}
-
-void dtIncrease() {
-    dethermalSecondsIndex++;
-    dethermalSecondsIndex = (dethermalSecondsIndex < dethermalSecondsSize) ? dethermalSecondsIndex : dethermalSecondsSize - 1;
-    defaultPage();
-}
-
-void saveChanges() {
-    saveSettings();
-    machineState = startWipe1;
-    defaultPage();
-}
-
-void getTriggerDT() {
-    machineState = triggerDT;
-    defaultPage();
-}
-
-void getWaitingButtonStart() {
-    machineState = waitingButtonStart;
-    defaultPage();
-}
-
-void getMotorRun() {
-    machineState = motorRun;
-    defaultPage();
-}
-
 void spinUpMotor(int targetSpeed) {
     int escValue = escServo.read();
     if (targetSpeed > escValue) {
@@ -441,9 +348,12 @@ void spinDownMotor() {
     int spinDownValue = MinPwm + (MaxPwm - MinPwm)*(remainingTime / escSpinDownMs);
     int escPosition = (remainingTime > 0) ? spinDownValue : MinPwm;
     //    escPosition = (escPosition > MinPwm) ? escPosition - 1 : MinPwm;
-    Serial.print(escPosition);
-    Serial.print(",");
     escServo.write(escPosition);
+    if (escPosition != 0) {
+        Serial.print(escPosition);
+        Serial.print(",");
+        escServo.write(escPosition);
+    }
 }
 
 void updateStartWipe(enum MachineState completionState) {
@@ -784,6 +694,105 @@ void setupRegisters() {
     //    powerUp();
     dtServo.write(MinPwm); // set the servo to the minimum for now
     escServo.write(MinPwm); // set the ESC to the minimum for now
+}
+
+void getTelemetry() {
+//    Serial.print("getTelemetry");
+    webServer.send(200, "text/html", getTelemetryString());
+}
+
+void defaultPage() {
+    Serial.print("defaultPage");
+    webServer.send(200, "text/html", "<!DOCTYPE html><html><head><title>E36</title>"
+            //            "<script src='https://ajax.googleapis.com/ajax/libs/jquery/3.1.1/jquery.min.js'></script>"
+            "<script>"
+            //            "$('#remoteButton').click(function(){"
+            //            "$('#buttonResult').load('button');"
+            //            "$('#telemetryResult').load('telemetry');"
+            //                        "});"
+            "function requestUpdate() {"
+            "var xhttp = new XMLHttpRequest();"
+            "xhttp.onreadystatechange = function() {"
+            "if (this.readyState == 4 && this.status == 200) {"
+            "document.getElementById('telemetryResult').innerHTML = this.responseText;"
+            "setTimeout(requestUpdate, 1000);"
+            "}"
+            "};"
+            "xhttp.open('GET', 'telemetry', true);"
+            "xhttp.send();"
+            "}"
+            "setTimeout(requestUpdate, 1000)"
+            "</script>"
+            "</head><body>"
+            "<h1>Telemetry Data</h1>"
+            //            "<button id='remoteButton'>remoteButton</button>"
+            //            "<div id='buttonResult'>buttonResult</div>"
+            "<br/>"
+            "<a href='motorRun'>motorRun</a><br/><br/>"
+            "<a href='triggerDT'>triggerDT</a><br/><br/>"
+            "<a href='restart'>restart</a><br/><br/><br/>"
+            "<br/>"
+            //            "<button id='buttonUpdate' onclick='location.reload();'>update</button>"
+            "<div id='telemetryResult'>"
+            + getTelemetryString() +
+            "</div>"
+            "<a href='motorDecrease'>motorDecrease</a>&nbsp;"
+            "<a href='motorIncrease'>motorIncrease</a><br/><br/>"
+            "<a href='dtDecrease'>dtDecrease</a>&nbsp;"
+            "<a href='dtIncrease'>dtIncrease</a><br/><br/>"
+            "<a href='saveChanges'>saveChanges</a><br/><br/>"
+            "</body></html>");
+}
+
+void motorDecrease() {
+    motorSecondsIndex--;
+    motorSecondsIndex = (motorSecondsIndex < 0) ? 0 : motorSecondsIndex;
+    defaultPage();
+}
+
+void motorIncrease() {
+    motorSecondsIndex++;
+    motorSecondsIndex = (motorSecondsIndex < motorSecondsSize) ? motorSecondsIndex : motorSecondsSize - 1;
+    defaultPage();
+}
+
+void dtDecrease() {
+    dethermalSecondsIndex--;
+    dethermalSecondsIndex = (dethermalSecondsIndex < 0) ? 0 : dethermalSecondsIndex;
+    defaultPage();
+}
+
+void dtIncrease() {
+    dethermalSecondsIndex++;
+    dethermalSecondsIndex = (dethermalSecondsIndex < dethermalSecondsSize) ? dethermalSecondsIndex : dethermalSecondsSize - 1;
+    defaultPage();
+}
+
+void saveChanges() {
+    saveSettings();
+    machineState = startWipe1;
+    defaultPage();
+}
+
+void getTriggerDT() {
+    lastStateChangeMs = millis();
+    machineState = triggerDT;
+    defaultPage();
+}
+
+void getWaitingButtonStart() {
+    // power down the motor in the case of restarts
+    escServo.write(MinPwm);
+    lastStateChangeMs = millis();
+    powerUp();
+    machineState = waitingButtonStart;
+    defaultPage();
+}
+
+void getMotorRun() {
+    lastStateChangeMs = millis();
+    machineState = motorRun;
+    defaultPage();
 }
 
 void setup() {
