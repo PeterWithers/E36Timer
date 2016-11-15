@@ -20,7 +20,8 @@
 #include <ESP8266WebServer.h>
 //#include <SFE_BMP180.h>
 //#include <Wire.h>
-
+WiFiUDP Udp;
+unsigned int localUdpPort = 2222;
 
 const byte DNS_PORT = 53;
 IPAddress apIP(192, 168, 1, 1);
@@ -41,9 +42,9 @@ bool hasPressureSensor = false;
 #define IndicatorLed     2
 #define ServoPWM         4
 #define EscPWM           5
-#define ButtonPin        12
+#define ButtonPin        14
 #define RcDt1Pin         13
-#define RcDt2Pin         14
+#define RcDt2Pin         12
 
 Servo dtServo;
 Servo escServo;
@@ -76,7 +77,8 @@ enum MachineState {
     motorRun,
     freeFlight,
     triggerDT,
-    waitingForRestart
+    waitingForRestart,
+    dtRemote
 };
 
 volatile enum MachineState machineState = setupSystem;
@@ -338,7 +340,7 @@ String getTelemetryString() {
     telemetryString += analogRead(A0);
     telemetryString += "<br/>";
     telemetryString += "voltage: ";
-    telemetryString += (analogRead(A0)/69.0);
+    telemetryString += (analogRead(A0) / 69.0);
     telemetryString += "v";
     // 339 @ 4.946v
     // 286 @ 4.142v
@@ -349,6 +351,39 @@ String getTelemetryString() {
     telemetryString += "lastStateChangeMs: ";
     telemetryString += (millis() - lastStateChangeMs);
     telemetryString += "<br/>";
+    //Udp.beginPacket(IPAddress(0, 0, 0, 255), localUdpPort);
+    //Udp.write((millis() + "ms"));
+    //Udp.endPacket();
+    int packetSize = Udp.parsePacket();
+    if (packetSize) {
+        char incomingPacket[255];
+        int len = Udp.read(incomingPacket, 255);
+        if (len > 0) {
+            incomingPacket[len] = 0;
+        }
+        telemetryString += incomingPacket;
+        telemetryString += "<br/>";
+        unsigned long udpSendMs = millis();
+        Udp.beginPacket(Udp.remoteIP(), Udp.remotePort());
+        Udp.write("Ping");
+        Udp.endPacket();
+        telemetryString += ("UDP send time: ");
+        telemetryString += (millis() - udpSendMs);
+        telemetryString += ("ms");
+        telemetryString += "<br/>";
+        int packetSize = Udp.parsePacket();
+        if (packetSize) {
+            int len = Udp.read(incomingPacket, 255);
+            if (len > 0) {
+                incomingPacket[len] = 0;
+            }
+            telemetryString += incomingPacket;
+            telemetryString += ("UDP receive time:");
+            telemetryString += (millis() - udpSendMs);
+            telemetryString += ("ms");
+            telemetryString += "<br/>";
+        }
+    }
     return telemetryString;
 }
 
@@ -673,7 +708,7 @@ void loop() {
             }
             break;
         case freeFlight:
-//            sendTelemetry();
+            //            sendTelemetry();
             if (RcDtIsActive) { // respond to an RC DT trigger
                 Serial.print("RcDtIsActive ");
                 machineState = triggerDT;
@@ -710,9 +745,36 @@ void loop() {
             }
             fastFlash();
             break;
+        case dtRemote:
+            int packetSize = Udp.parsePacket();
+            if (packetSize) {
+                char incomingPacket[255];
+                int len = Udp.read(incomingPacket, 255);
+                if (len > 0) {
+                    incomingPacket[len] = 0;
+                }
+                Udp.beginPacket(Udp.remoteIP(), Udp.remotePort());
+                Udp.write(incomingPacket);
+                Udp.endPacket();
+            } else if (millis() - buttonLastChangeMs > buttonDebounceMs) {
+                if (ButtonIsDown) {
+                    if (buttonHasBeenUp == 1) {
+                        buttonHasBeenUp = 0;
+                        Udp.beginPacket(apIP, localUdpPort);
+                        Udp.write("ButtonDown");
+                        Udp.endPacket();
+                    }
+                } else {
+                    buttonHasBeenUp = 1;
+                }
+                buttonLastChangeMs = millis();
+            }
+            break;
     }
-    dnsServer.processNextRequest();
-    webServer.handleClient();
+    if (machineState != dtRemote) {
+        dnsServer.processNextRequest();
+        webServer.handleClient();
+    }
 }
 
 void setupRegisters() {
@@ -761,7 +823,7 @@ void defaultPage() {
             "<a href='motorRun'>motorRun</a><br/><br/>"
             "<a href='triggerDT'>triggerDT</a><br/><br/>"
             "<a href='restart'>restart</a><br/><br/><br/>"
-//            "<br/>"
+            //            "<br/>"
             //            "<button id='buttonUpdate' onclick='location.reload();'>update</button>"
             "<div id='telemetryResult'>"
             + getTelemetryString() +
@@ -836,34 +898,45 @@ void setup() {
     EEPROM.begin(4);
     loadSavedSettings();
     setupRegisters();
-    attachInterrupt(1, pinChangeInterrupt, CHANGE);
-    if (ButtonIsDown) {
-        machineState = throttleMax;
-        sendTelemetry();
+    if (true) {
+        attachInterrupt(1, pinChangeInterrupt, CHANGE);
+        if (ButtonIsDown) {
+            machineState = throttleMax;
+            sendTelemetry();
+        } else {
+            machineState = startWipe1;
+            powerUpDt();
+            sendTelemetry();
+        }
+        WiFi.mode(WIFI_AP);
+        WiFi.softAPConfig(apIP, apIP, IPAddress(255, 255, 255, 0));
+        WiFi.softAP("E36 Timer");
+
+        // if DNSServer is started with "*" for domain name, it will reply with
+        // provided IP to all DNS request
+        dnsServer.start(DNS_PORT, "*", apIP);
+
+        webServer.on("/telemetry", getTelemetry);
+        webServer.on("/triggerDT", getTriggerDT);
+        webServer.on("/motorRun", getMotorRun);
+        webServer.on("/restart", getWaitingButtonStart);
+        webServer.on("/motorDecrease", motorDecrease);
+        webServer.on("/motorIncrease", motorIncrease);
+        webServer.on("/dtDecrease", dtDecrease);
+        webServer.on("/dtIncrease", dtIncrease);
+        webServer.on("/saveChanges", saveChanges);
+        webServer.onNotFound(defaultPage);
+        webServer.begin();
+
+        Udp.begin(localUdpPort);
     } else {
-        machineState = startWipe1;
-        powerUpDt();
-        sendTelemetry();
+        WiFi.mode(WIFI_STA);
+        WiFi.begin("E36 Timer");
+        while (WiFi.status() != WL_CONNECTED) {
+            delay(500);
+        }
+        machineState = dtRemote;
     }
-    WiFi.mode(WIFI_AP);
-    WiFi.softAPConfig(apIP, apIP, IPAddress(255, 255, 255, 0));
-    WiFi.softAP("E36 Timer");
-
-    // if DNSServer is started with "*" for domain name, it will reply with
-    // provided IP to all DNS request
-    dnsServer.start(DNS_PORT, "*", apIP);
-
-    webServer.on("/telemetry", getTelemetry);
-    webServer.on("/triggerDT", getTriggerDT);
-    webServer.on("/motorRun", getMotorRun);
-    webServer.on("/restart", getWaitingButtonStart);
-    webServer.on("/motorDecrease", motorDecrease);
-    webServer.on("/motorIncrease", motorIncrease);
-    webServer.on("/dtDecrease", dtDecrease);
-    webServer.on("/dtIncrease", dtIncrease);
-    webServer.on("/saveChanges", saveChanges);
-    webServer.onNotFound(defaultPage);
-    webServer.begin();
 
     //    hasPressureSensor = pressureSensor.begin();
     //    if (hasPressureSensor) {
