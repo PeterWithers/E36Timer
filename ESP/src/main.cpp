@@ -363,6 +363,7 @@ String getTelemetryString() {
     telemetryString += (ESP.getCycleCount() - udpSendCycleCount);
     telemetryString += (" cycles");
     telemetryString += "<br/>";
+    Serial.printf("RSSI: %d dBm\n", WiFi.RSSI());
     return telemetryString;
 }
 
@@ -503,6 +504,7 @@ bool checkDtPacket() {
 void loop() {
     int servoPosition = dtServo.read();
     int escPosition = escServo.read();
+    bool foundDtPacket = checkDtPacket();
     switch (machineState) {
         case setupSystem:
             break;
@@ -673,7 +675,7 @@ void loop() {
                     TurnOnLed;
                     spinUpMotor(MaxPwm);
                 }
-                if (RcDtIsActive || checkDtPacket()) { // respond to an RC DT trigger
+                if (RcDtIsActive || foundDtPacket) { // respond to an RC DT trigger
                     machineState = triggerDT;
                     lastStateChangeMs = millis();
                     sendTelemetry();
@@ -698,7 +700,7 @@ void loop() {
             break;
         case freeFlight:
             //            sendTelemetry();
-            if (RcDtIsActive || checkDtPacket()) { // respond to an RC DT trigger
+            if (RcDtIsActive || foundDtPacket) { // respond to an RC DT trigger
                 Serial.print("RcDtIsActive ");
                 machineState = triggerDT;
                 lastStateChangeMs = millis();
@@ -737,27 +739,16 @@ void loop() {
         case dtRemote:
             if (millis() - buttonLastChangeMs > buttonDebounceMs) {
                 if (ButtonIsDown) {
-                    if (buttonHasBeenUp == 1) {
-                        buttonHasBeenUp = 0;
-                        Udp.beginPacket(timerIP, localUdpPort);
-                        Udp.write("ButtonDown");
-                        Udp.endPacket();
-                    }
-                } else {
-                    buttonHasBeenUp = 1;
+                    Udp.beginPacket(timerIP, localUdpPort);
+                    Udp.write("ButtonDown");
+                    Udp.endPacket();
                 }
                 buttonLastChangeMs = millis();
             }
             int packetSize = Udp.parsePacket();
             if (packetSize) {
                 Serial.print("Found packet");
-                //                char incomingPacket[255];
                 Udp.flush();
-                //                int len = Udp.read(incomingPacket, 255);
-                //                if (len > 0) {
-                //                    incomingPacket[len] = 0;
-                //                }
-                //                Serial.println(incomingPacket);
             }
             break;
     }
@@ -888,7 +879,7 @@ void setup() {
     EEPROM.begin(4);
     loadSavedSettings();
     setupRegisters();
-    if (false) {
+    if (true) {
         attachInterrupt(1, pinChangeInterrupt, CHANGE);
         if (ButtonIsDown) {
             machineState = throttleMax;
