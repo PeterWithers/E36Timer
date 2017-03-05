@@ -33,6 +33,10 @@ Sodaq_BMP085 pressureSensor;
 double baselinePressure;
 bool hasPressureSensor = true;
 
+int historyLength = 1024;
+float temperatureHistory[1024];
+float altitudeHistory[1024];
+
 //#define TRIGGER_PIN  3
 //#define ECHO_PIN     2
 //#define MAX_DISTANCE 400
@@ -267,7 +271,22 @@ void sendTelemetry() {
 bool getPressure(double &temperature, double &pressure, double &altitude) {
     temperature = pressureSensor.readTemperature();
     pressure = pressureSensor.readPressure();
-    altitude = pressureSensor.readAltitude();
+    altitude = pressureSensor.readAltitude(baselinePressure);
+    temperatureHistory[(millis()/1000)%historyLength] = temperature;
+    altitudeHistory[(millis()/1000)%historyLength] = altitude;
+
+    Serial.print("altitudeHistory: ");
+    for (int currentIndex = 0; currentIndex < historyLength; currentIndex++) {
+        Serial.print(altitudeHistory[currentIndex]);
+        Serial.print(", ");
+    }
+    Serial.println(";");
+    Serial.print("temperatureHistory: ");
+    for (int currentIndex = 0; currentIndex < historyLength; currentIndex++) {
+        Serial.print(temperatureHistory[currentIndex]);
+        Serial.print(", ");
+    }
+    Serial.println(";");
     return true;
 }
 
@@ -794,6 +813,22 @@ void getTelemetry() {
     webServer.send(200, "text/html", getTelemetryString());
 }
 
+void getGraphData() {
+    String graphData = "{altitudeHistory: [";
+    for (int currentIndex = 0; currentIndex < historyLength; currentIndex++) {
+        graphData += altitudeHistory[currentIndex];
+        graphData += ", ";
+    }
+    graphData += "];";
+    graphData += "temperatureHistory: [";
+    for (int currentIndex = 0; currentIndex < historyLength; currentIndex++) {
+        graphData += temperatureHistory[currentIndex];
+        graphData += ", ";
+    }
+    graphData += "]}";
+    webServer.send(200, "text/html", graphData);
+}
+
 void defaultPage() {
     //Serial.print("defaultPage");
     webServer.send(200, "text/html", "<!DOCTYPE html><html><head><title>E36</title>"
@@ -918,6 +953,7 @@ void setup() {
         dnsServer.start(DNS_PORT, "*", timerIP);
 
         webServer.on("/telemetry", getTelemetry);
+        webServer.on("/graphData", getGraphData);
         webServer.on("/triggerDT", getTriggerDT);
         webServer.on("/motorRun", getMotorRun);
         webServer.on("/restart", getWaitingButtonStart);
@@ -941,9 +977,9 @@ void setup() {
 
     Wire.pins(SdaPin, SclPin);
     pressureSensor.begin();
-    double temperature, pressure, altitude;
-    getPressure(temperature, pressure, altitude);
-    baselinePressure = pressure;
+//    double temperature, pressure, altitude;
+//    getPressure(temperature, pressure, altitude);
+    baselinePressure = pressureSensor.readPressure();
 
     Serial.print("baseline pressure: ");
     Serial.print(baselinePressure);
