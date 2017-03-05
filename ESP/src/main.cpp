@@ -18,7 +18,7 @@
 #include <ESP8266WiFi.h>
 #include <DNSServer.h>
 #include <ESP8266WebServer.h>
-#include <SFE_BMP180.h>
+#include <Sodaq_BMP085.h>
 #include <Wire.h>
 WiFiUDP Udp;
 unsigned int localUdpPort = 2222;
@@ -29,7 +29,7 @@ IPAddress remoteIP(192, 168, 1, 2);
 DNSServer dnsServer;
 ESP8266WebServer webServer(80);
 
-SFE_BMP180 pressureSensor;
+Sodaq_BMP085 pressureSensor;
 double baselinePressure;
 bool hasPressureSensor = true;
 
@@ -265,24 +265,10 @@ void sendTelemetry() {
 }
 
 bool getPressure(double &temperature, double &pressure, double &altitude) {
-    char status;
-    status = pressureSensor.startTemperature();
-    if (status != 0) {
-        delay(status);
-        status = pressureSensor.getTemperature(temperature);
-        if (status != 0) {
-            status = pressureSensor.startPressure(3);
-            if (status != 0) {
-                delay(status);
-                status = pressureSensor.getPressure(pressure, temperature);
-                if (status != 0) {
-                    altitude = pressureSensor.altitude(pressure, baselinePressure);
-                    return true;
-                }
-            }
-        }
-    }
-    return false;
+    temperature = pressureSensor.readTemperature();
+    pressure = pressureSensor.readPressure();
+    altitude = pressureSensor.readAltitude();
+    return true;
 }
 
 String getTelemetryString() {
@@ -954,16 +940,12 @@ void setup() {
     Udp.begin(localUdpPort);
 
     Wire.pins(SdaPin, SclPin);
-    hasPressureSensor = pressureSensor.begin();
-    if (hasPressureSensor) {
-        double temperature, pressure, altitude;
-        getPressure(temperature, pressure, altitude);
-        baselinePressure = pressure;
+    pressureSensor.begin();
+    double temperature, pressure, altitude;
+    getPressure(temperature, pressure, altitude);
+    baselinePressure = pressure;
 
-        Serial.print("baseline pressure: ");
-        Serial.print(baselinePressure);
-        Serial.println(" mb");
-    } else {
-        Serial.print("BMP180 not found");
-    }
+    Serial.print("baseline pressure: ");
+    Serial.print(baselinePressure);
+    Serial.println(" mb");
 }
