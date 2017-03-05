@@ -264,7 +264,7 @@ void sendTelemetry() {
     Serial.println(millis() - lastStateChangeMs);
 }
 
-bool getPressure(double &temperature, double &pressure) {
+bool getPressure(double &temperature, double &pressure, double &altitude) {
     char status;
     status = pressureSensor.startTemperature();
     if (status != 0) {
@@ -276,6 +276,7 @@ bool getPressure(double &temperature, double &pressure) {
                 delay(status);
                 status = pressureSensor.getPressure(pressure, temperature);
                 if (status != 0) {
+                    altitude = pressureSensor.altitude(pressure, baselinePressure);
                     return true;
                 }
             }
@@ -386,10 +387,11 @@ String getTelemetryString() {
 
     if (hasPressureSensor) {
         double altitude, temperature, pressure;
-        if (getPressure(temperature, pressure)){
-            altitude = pressureSensor.altitude(pressure, baselinePressure);
+        if (getPressure(temperature, pressure, altitude)){
             telemetryString += temperature;
             telemetryString += " temperature<br/>";
+            telemetryString += pressure;
+            telemetryString += " mb<br/>";
             telemetryString += altitude;
             telemetryString += " meters<br/>";
             telemetryString += altitude * 3.28084;
@@ -954,8 +956,8 @@ void setup() {
     Wire.pins(SdaPin, SclPin);
     hasPressureSensor = pressureSensor.begin();
     if (hasPressureSensor) {
-        double temperature, pressure;
-        getPressure(temperature, pressure);
+        double temperature, pressure, altitude;
+        getPressure(temperature, pressure, altitude);
         baselinePressure = pressure;
 
         Serial.print("baseline pressure: ");
