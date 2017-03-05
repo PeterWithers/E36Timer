@@ -18,8 +18,8 @@
 #include <ESP8266WiFi.h>
 #include <DNSServer.h>
 #include <ESP8266WebServer.h>
-//#include <SFE_BMP180.h>
-//#include <Wire.h>
+#include <SFE_BMP180.h>
+#include <Wire.h>
 WiFiUDP Udp;
 unsigned int localUdpPort = 2222;
 
@@ -29,9 +29,9 @@ IPAddress remoteIP(192, 168, 1, 2);
 DNSServer dnsServer;
 ESP8266WebServer webServer(80);
 
-//SFE_BMP180 pressureSensor;
-//double baselinePressure;
-bool hasPressureSensor = false;
+SFE_BMP180 pressureSensor;
+double baselinePressure;
+bool hasPressureSensor = true;
 
 //#define TRIGGER_PIN  3
 //#define ECHO_PIN     2
@@ -43,9 +43,9 @@ bool hasPressureSensor = false;
 #define IndicatorLed     2
 #define ServoPWM         4
 #define EscPWM           5
-#define ButtonPin        14
-#define RcDt1Pin         13
-#define RcDt2Pin         12
+#define ButtonPin        0
+#define SdaPin           12
+#define SclPin           14
 
 Servo dtServo;
 Servo escServo;
@@ -264,6 +264,26 @@ void sendTelemetry() {
     Serial.println(millis() - lastStateChangeMs);
 }
 
+bool getPressure(double &temperature, double &pressure) {
+    char status;
+    status = pressureSensor.startTemperature();
+    if (status != 0) {
+        delay(status);
+        status = pressureSensor.getTemperature(temperature);
+        if (status != 0) {
+            status = pressureSensor.startPressure(3);
+            if (status != 0) {
+                delay(status);
+                status = pressureSensor.getPressure(pressure, temperature);
+                if (status != 0) {
+                    return true;
+                }
+            }
+        }
+    }
+    return false;
+}
+
 String getTelemetryString() {
     String telemetryString = "machineState: ";
     switch (machineState) {
@@ -354,7 +374,7 @@ String getTelemetryString() {
     telemetryString += "<br/>";
     telemetryString += "RSSI: ";
     telemetryString += WiFi.RSSI();
-    telemetryString += "<br/>";
+    telemetryString += "dBm<br/>";
     unsigned long udpSendCycleCount = ESP.getCycleCount();
     Udp.beginPacket(remoteIP, localUdpPort);
     Udp.write("PingPingPingPingPingPingPingPingPingPingPingPingPingPingPingPingPingPingPingPingPingPingPingPingPingPingPingPingPingPingPingPingPingPingPingPingPingPingPingPingPingPingPingPingPingPingPingPingPingPingPingPingPingPingPingPingPingPingPingPingPingPingPingPingPingPingPingPingPingPingPingPingPingPingPingPingPingPingPingPingPing");
@@ -363,7 +383,19 @@ String getTelemetryString() {
     telemetryString += (ESP.getCycleCount() - udpSendCycleCount);
     telemetryString += (" cycles");
     telemetryString += "<br/>";
-    Serial.printf("RSSI: %d dBm\n", WiFi.RSSI());
+
+    if (hasPressureSensor) {
+        double altitude, temperature, pressure;
+        if (getPressure(temperature, pressure)){
+            altitude = pressureSensor.altitude(pressure, baselinePressure);
+            telemetryString += temperature;
+            telemetryString += " temperature<br/>";
+            telemetryString += altitude;
+            telemetryString += " meters<br/>";
+            telemetryString += altitude * 3.28084;
+            telemetryString += " feet<br/>";
+        }
+    }
     return telemetryString;
 }
 
@@ -919,12 +951,17 @@ void setup() {
     }
     Udp.begin(localUdpPort);
 
-    //    hasPressureSensor = pressureSensor.begin();
-    //    if (hasPressureSensor) {
-    //        baselinePressure = getPressure();
-    //
-    //        Serial.print("baseline pressure: ");
-    //        Serial.print(baselinePressure);
-    //        Serial.println(" mb");
-    //    }
+    Wire.pins(SdaPin, SclPin);
+    hasPressureSensor = pressureSensor.begin();
+    if (hasPressureSensor) {
+        double temperature, pressure;
+        getPressure(temperature, pressure);
+        baselinePressure = pressure;
+
+        Serial.print("baseline pressure: ");
+        Serial.print(baselinePressure);
+        Serial.println(" mb");
+    } else {
+        Serial.print("BMP180 not found");
+    }
 }
