@@ -34,6 +34,7 @@ double baselinePressure;
 bool hasPressureSensor = true;
 
 int historyLength = 1024;
+int historyIndex = 0;
 float temperatureHistory[1024];
 float altitudeHistory[1024];
 
@@ -272,10 +273,8 @@ bool getPressure(double &temperature, double &pressure, double &altitude) {
     temperature = pressureSensor.readTemperature();
     pressure = pressureSensor.readPressure();
     altitude = pressureSensor.readAltitude(baselinePressure);
-    temperatureHistory[(millis()/1000)%historyLength] = temperature;
-    altitudeHistory[(millis()/1000)%historyLength] = altitude;
 
-    Serial.print("altitudeHistory: ");
+    /*Serial.print("altitudeHistory: ");
     for (int currentIndex = 0; currentIndex < historyLength; currentIndex++) {
         Serial.print(altitudeHistory[currentIndex]);
         Serial.print(", ");
@@ -286,7 +285,7 @@ bool getPressure(double &temperature, double &pressure, double &altitude) {
         Serial.print(temperatureHistory[currentIndex]);
         Serial.print(", ");
     }
-    Serial.println(";");
+    Serial.println(";");*/
     return true;
 }
 
@@ -537,6 +536,17 @@ bool checkDtPacket() {
         return true;
     } else {
         return false;
+    }
+}
+
+void updateHistory(){
+    int currentIndex = (millis()/1000)%historyLength;
+    if (currentIndex != historyIndex) {
+        float temperature = pressureSensor.readTemperature();
+        float altitude = pressureSensor.readAltitude(baselinePressure);
+        temperatureHistory[currentIndex] = temperature;
+        altitudeHistory[currentIndex] = altitude;
+        historyIndex = currentIndex;
     }
 }
 
@@ -792,6 +802,7 @@ void loop() {
             break;
     }
     if (machineState != dtRemote) {
+        updateHistory();
         dnsServer.processNextRequest();
         webServer.handleClient();
     }
@@ -814,7 +825,9 @@ void getTelemetry() {
 }
 
 void getGraphData() {
-    String graphData = "{altitudeHistory: [";
+    String graphData = "{historyIndex: ";
+    graphData += historyIndex;
+    graphData += "; altitudeHistory: [";
     for (int currentIndex = 0; currentIndex < historyLength; currentIndex++) {
         graphData += altitudeHistory[currentIndex];
         graphData += ", ";
@@ -869,6 +882,7 @@ void defaultPage() {
             "<a href='dtDecrease'>dtDecrease</a>&nbsp;"
             "<a href='dtIncrease'>dtIncrease</a><br/><br/>"
             "<a href='saveChanges'>saveChanges</a><br/><br/>"
+            "<a href='graphData'>Graph Data</a><br/><br/>"
             "</body></html>");
 }
 
