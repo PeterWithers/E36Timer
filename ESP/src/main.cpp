@@ -859,9 +859,14 @@ void getGraphData() {
 }
 
 void getGraphSvg() {
+    String escColour = "#a92c10";
+    String dtColour = "#d86b00";
+    String temperatureColour = "#495c65";
+    String altitudeColour = "#2c353e";
+
     String dataType = (webServer.hasArg("download")) ? "application/octet-stream" : "image/svg+xml";
     webServer.setContentLength(CONTENT_LENGTH_UNKNOWN);
-    String startSvg = "<svg height=\"";
+    String startSvg = "<svg xmlns=\"http://www.w3.org/2000/svg\" height=\"";
     startSvg += maxSvgValue;
     startSvg += "\" width=\"1024\">";
 
@@ -872,44 +877,44 @@ void getGraphSvg() {
         String altitudePoints = "";
         altitudePoints += currentIndex;
         altitudePoints += ",";
-        altitudePoints += altitudeHistory[currentIndex];
+        altitudePoints += maxSvgValue - altitudeHistory[currentIndex];
         altitudePoints += " ";
         webServer.sendContent(altitudePoints);
     }
-    webServer.sendContent("\" style=\"fill:none;stroke:black;stroke-width:3\" />");
+    webServer.sendContent("\" style=\"fill:none;stroke:"+altitudeColour+";stroke-width:1\" />");
 
     webServer.sendContent("<polyline points=\"");
     for (int currentIndex = 0; currentIndex < historyLength; currentIndex++) {
         String temperaturePoints = "";
         temperaturePoints += currentIndex;
         temperaturePoints += ",";
-        temperaturePoints += temperatureHistory[currentIndex];
+        temperaturePoints += maxSvgValue - temperatureHistory[currentIndex];
         temperaturePoints += " ";
         webServer.sendContent(temperaturePoints);
     }
-    webServer.sendContent("\" style=\"fill:none;stroke:black;stroke-width:3\" />");
+    webServer.sendContent("\" style=\"fill:none;stroke:"+temperatureColour+";stroke-width:1\" />");
 
     webServer.sendContent("<polyline points=\"");
     for (int currentIndex = 0; currentIndex < historyLength; currentIndex++) {
         String escPoints = "";
         escPoints += currentIndex;
         escPoints += ",";
-        escPoints += escHistory[currentIndex];
+        escPoints += maxSvgValue - escHistory[currentIndex];
         escPoints += " ";
         webServer.sendContent(escPoints);
     }
-    webServer.sendContent("\" style=\"fill:none;stroke:black;stroke-width:3\" />");
+    webServer.sendContent("\" style=\"fill:none;stroke:"+escColour+";stroke-width:1\" />");
 
     webServer.sendContent("<polyline points=\"");
     for (int currentIndex = 0; currentIndex < historyLength; currentIndex++) {
         String dtPoints = "";
         dtPoints += currentIndex;
         dtPoints += ",";
-        dtPoints += dtHistory[currentIndex];
+        dtPoints += maxSvgValue - dtHistory[currentIndex];
         dtPoints += " ";
         webServer.sendContent(dtPoints);
     }
-    webServer.sendContent("\" style=\"fill:none;stroke:black;stroke-width:3\" />");
+    webServer.sendContent("\" style=\"fill:none;stroke:"+dtColour+";stroke-width:1\" />");
 
     webServer.sendContent("</svg>");
 }
@@ -954,9 +959,9 @@ void defaultPage() {
             "<a href='dtDecrease'>dtDecrease</a>&nbsp;"
             "<a href='dtIncrease'>dtIncrease</a><br/><br/>"
             "<a href='saveChanges'>saveChanges</a><br/><br/>"
-            "<a href='graphData'>Graph Data</a><br/><br/>"
-            "<a href='graphSvg'>Graph SVG</a><br/><br/>"
-            "<a href='graphSvg?download'>Download SVG</a><br/><br/>"
+            "<a href='graph.json'>Graph Data</a><br/><br/>"
+            "<a href='graph.svg'>Graph SVG</a><br/><br/>"
+            "<a href='graph.svg?download'>Download SVG</a><br/><br/>"
             "</body></html>");
 }
 
@@ -1041,8 +1046,8 @@ void setup() {
         dnsServer.start(DNS_PORT, "*", timerIP);
 
         webServer.on("/telemetry", getTelemetry);
-        webServer.on("/graphData", getGraphData);
-        webServer.on("/graphSvg", getGraphSvg);
+        webServer.on("/graph.json", getGraphData);
+        webServer.on("/graph.svg", getGraphSvg);
         webServer.on("/triggerDT", getTriggerDT);
         webServer.on("/motorRun", getMotorRun);
         webServer.on("/restart", getWaitingButtonStart);
