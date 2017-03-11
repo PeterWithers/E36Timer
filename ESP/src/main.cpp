@@ -885,7 +885,9 @@ void getGraphSvg() {
         dtPoints += dtHistory[currentIndex];
         dtPoints += " ";
     }
-    String graphData = "<svg height=\"" + maxValue + "\" width=\"1024\">";
+    String graphData = "<svg height=\"";
+    graphData += maxValue;
+    graphData += "\" width=\"1024\">";
     graphData += "<polyline points=\"" + altitudePoints + "\" style=\"fill:none;stroke:black;stroke-width:3\" />";
     graphData += "<polyline points=\"" + temperaturePoints + "\" style=\"fill:none;stroke:black;stroke-width:3\" />";
     graphData += "<polyline points=\"" + escPoints + "\" style=\"fill:none;stroke:black;stroke-width:3\" />";
