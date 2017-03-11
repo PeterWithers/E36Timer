@@ -37,6 +37,8 @@ int historyLength = 1024;
 int historyIndex = 0;
 float temperatureHistory[1024];
 float altitudeHistory[1024];
+int escHistory[1024];
+int dtHistory[1024];
 
 //#define TRIGGER_PIN  3
 //#define ECHO_PIN     2
@@ -539,6 +541,8 @@ void updateHistory(){
         float altitude = pressureSensor.readAltitude(baselinePressure);
         temperatureHistory[currentIndex] = temperature;
         altitudeHistory[currentIndex] = altitude;
+        escHistory[currentIndex] = escServo.read();
+        dtHistory[currentIndex] = dtServo.read();
         historyIndex = currentIndex;
     }
 }
@@ -831,8 +835,63 @@ void getGraphData() {
         graphData += temperatureHistory[currentIndex];
         graphData += ", ";
     }
+    graphData += "];";
+    graphData += "dtHistory: [";
+    for (int currentIndex = 0; currentIndex < historyLength; currentIndex++) {
+        graphData += dtHistory[currentIndex];
+        graphData += ", ";
+    }
+    graphData += "];";
+    graphData += "escHistory: [";
+    for (int currentIndex = 0; currentIndex < historyLength; currentIndex++) {
+        graphData += escHistory[currentIndex];
+        graphData += ", ";
+    }
     graphData += "]}";
     webServer.send(200, "text/html", graphData);
+}
+
+void getGraphSvg() {
+    int maxValue = 0;
+    String altitudePoints = "";
+    for (int currentIndex = 0; currentIndex < historyLength; currentIndex++) {
+        maxValue = (maxValue < altitudeHistory[currentIndex])? altitudeHistory[currentIndex] : maxValue;
+        altitudePoints += currentIndex;
+        altitudePoints += ",";
+        altitudePoints += altitudeHistory[currentIndex];
+        altitudePoints += " ";
+    }
+    String temperaturePoints = "";
+    for (int currentIndex = 0; currentIndex < historyLength; currentIndex++) {
+        maxValue = (maxValue < temperatureHistory[currentIndex])? temperatureHistory[currentIndex] : maxValue;
+        temperaturePoints += currentIndex;
+        temperaturePoints += ",";
+        temperaturePoints += temperatureHistory[currentIndex];
+        temperaturePoints += " ";
+    }
+    String escPoints = "";
+    for (int currentIndex = 0; currentIndex < historyLength; currentIndex++) {
+        maxValue = (maxValue < escHistory[currentIndex])? escHistory[currentIndex] : maxValue;
+        escPoints += currentIndex;
+        escPoints += ",";
+        escPoints += escHistory[currentIndex];
+        escPoints += " ";
+    }
+    String dtPoints = "";
+    for (int currentIndex = 0; currentIndex < historyLength; currentIndex++) {
+        maxValue = (maxValue < dtHistory[currentIndex])? dtHistory[currentIndex] : maxValue;
+        dtPoints += currentIndex;
+        dtPoints += ",";
+        dtPoints += dtHistory[currentIndex];
+        dtPoints += " ";
+    }
+    String graphData = "<svg height=\"" + maxValue + "\" width=\"1024\">";
+    graphData += "<polyline points=\"" + altitudePoints + "\" style=\"fill:none;stroke:black;stroke-width:3\" />";
+    graphData += "<polyline points=\"" + temperaturePoints + "\" style=\"fill:none;stroke:black;stroke-width:3\" />";
+    graphData += "<polyline points=\"" + escPoints + "\" style=\"fill:none;stroke:black;stroke-width:3\" />";
+    graphData += "<polyline points=\"" + dtPoints + "\" style=\"fill:none;stroke:black;stroke-width:3\" />";
+    graphData += "</svg>";
+    webServer.send(200, "image/svg+xml", graphData);
 }
 
 void defaultPage() {
@@ -876,6 +935,7 @@ void defaultPage() {
             "<a href='dtIncrease'>dtIncrease</a><br/><br/>"
             "<a href='saveChanges'>saveChanges</a><br/><br/>"
             "<a href='graphData'>Graph Data</a><br/><br/>"
+            "<a href='graphSvg'>Graph SVG</a><br/><br/>"
             "</body></html>");
 }
 
@@ -961,6 +1021,7 @@ void setup() {
 
         webServer.on("/telemetry", getTelemetry);
         webServer.on("/graphData", getGraphData);
+        webServer.on("/graphSvg", getGraphSvg);
         webServer.on("/triggerDT", getTriggerDT);
         webServer.on("/motorRun", getMotorRun);
         webServer.on("/restart", getWaitingButtonStart);
