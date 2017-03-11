@@ -39,6 +39,7 @@ float temperatureHistory[1024];
 float altitudeHistory[1024];
 int escHistory[1024];
 int dtHistory[1024];
+int maxSvgValue = 0;
 
 //#define TRIGGER_PIN  3
 //#define ECHO_PIN     2
@@ -543,6 +544,12 @@ void updateHistory() {
         altitudeHistory[currentIndex] = altitude;
         escHistory[currentIndex] = escServo.read();
         dtHistory[currentIndex] = dtServo.read();
+
+        maxSvgValue = (maxSvgValue < altitudeHistory[currentIndex]) ? altitudeHistory[currentIndex] : maxSvgValue;
+        maxSvgValue = (maxSvgValue < temperatureHistory[currentIndex]) ? temperatureHistory[currentIndex] : maxSvgValue;
+        maxSvgValue = (maxSvgValue < escHistory[currentIndex]) ? escHistory[currentIndex] : maxSvgValue;
+        maxSvgValue = (maxSvgValue < dtHistory[currentIndex]) ? dtHistory[currentIndex] : maxSvgValue;
+
         historyIndex = currentIndex;
     }
 }
@@ -852,15 +859,17 @@ void getGraphData() {
 }
 
 void getGraphSvg() {
-    int maxValue = 0;
     String dataType = (webServer.hasArg("download")) ? "application/octet-stream" : "image/svg+xml";
     webServer.setContentLength(CONTENT_LENGTH_UNKNOWN);
-    webServer.send(200, dataType, "<svg height=\"" + maxValue + "\" width=\"1024\">");
+    String startSvg = "<svg height=\"";
+    startSvg += maxSvgValue;
+    startSvg += "\" width=\"1024\">";
+
+    webServer.send(200, dataType, startSvg);
 
     webServer.sendContent("<polyline points=\"");
     for (int currentIndex = 0; currentIndex < historyLength; currentIndex++) {
         String altitudePoints = "";
-        maxValue = (maxValue < altitudeHistory[currentIndex]) ? altitudeHistory[currentIndex] : maxValue;
         altitudePoints += currentIndex;
         altitudePoints += ",";
         altitudePoints += altitudeHistory[currentIndex];
@@ -872,7 +881,6 @@ void getGraphSvg() {
     webServer.sendContent("<polyline points=\"");
     for (int currentIndex = 0; currentIndex < historyLength; currentIndex++) {
         String temperaturePoints = "";
-        maxValue = (maxValue < temperatureHistory[currentIndex]) ? temperatureHistory[currentIndex] : maxValue;
         temperaturePoints += currentIndex;
         temperaturePoints += ",";
         temperaturePoints += temperatureHistory[currentIndex];
@@ -884,7 +892,6 @@ void getGraphSvg() {
     webServer.sendContent("<polyline points=\"");
     for (int currentIndex = 0; currentIndex < historyLength; currentIndex++) {
         String escPoints = "";
-        maxValue = (maxValue < escHistory[currentIndex]) ? escHistory[currentIndex] : maxValue;
         escPoints += currentIndex;
         escPoints += ",";
         escPoints += escHistory[currentIndex];
@@ -896,7 +903,6 @@ void getGraphSvg() {
     webServer.sendContent("<polyline points=\"");
     for (int currentIndex = 0; currentIndex < historyLength; currentIndex++) {
         String dtPoints = "";
-        maxValue = (maxValue < dtHistory[currentIndex]) ? dtHistory[currentIndex] : maxValue;
         dtPoints += currentIndex;
         dtPoints += ",";
         dtPoints += dtHistory[currentIndex];
