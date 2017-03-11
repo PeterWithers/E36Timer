@@ -393,7 +393,7 @@ String getTelemetryString() {
 
     if (hasPressureSensor) {
         double altitude, temperature, pressure;
-        if (getPressure(temperature, pressure, altitude)){
+        if (getPressure(temperature, pressure, altitude)) {
             telemetryString += temperature;
             telemetryString += " temperature<br/>";
             telemetryString += pressure;
@@ -534,8 +534,8 @@ bool checkDtPacket() {
     }
 }
 
-void updateHistory(){
-    int currentIndex = (millis()/1000)%historyLength;
+void updateHistory() {
+    int currentIndex = (millis() / 1000) % historyLength;
     if (currentIndex != historyIndex) {
         float temperature = pressureSensor.readTemperature();
         float altitude = pressureSensor.readAltitude(baselinePressure);
@@ -853,45 +853,59 @@ void getGraphData() {
 
 void getGraphSvg() {
     int maxValue = 0;
-    String altitudePoints = "";
+    String dataType = (webServer.hasArg("download")) ? "application/octet-stream" : "image/svg+xml";
+    webServer.setContentLength(CONTENT_LENGTH_UNKNOWN);
+    webServer.send(200, dataType, "<svg height=\"" + maxValue + "\" width=\"1024\">");
+
+    webServer.sendContent("<polyline points=\"");
     for (int currentIndex = 0; currentIndex < historyLength; currentIndex++) {
-        maxValue = (maxValue < altitudeHistory[currentIndex])? altitudeHistory[currentIndex] : maxValue;
+        String altitudePoints = "";
+        maxValue = (maxValue < altitudeHistory[currentIndex]) ? altitudeHistory[currentIndex] : maxValue;
         altitudePoints += currentIndex;
         altitudePoints += ",";
         altitudePoints += altitudeHistory[currentIndex];
         altitudePoints += " ";
+        webServer.sendContent(altitudePoints);
     }
-    String temperaturePoints = "";
+    webServer.sendContent("\" style=\"fill:none;stroke:black;stroke-width:3\" />");
+
+    webServer.sendContent("<polyline points=\"");
     for (int currentIndex = 0; currentIndex < historyLength; currentIndex++) {
-        maxValue = (maxValue < temperatureHistory[currentIndex])? temperatureHistory[currentIndex] : maxValue;
+        String temperaturePoints = "";
+        maxValue = (maxValue < temperatureHistory[currentIndex]) ? temperatureHistory[currentIndex] : maxValue;
         temperaturePoints += currentIndex;
         temperaturePoints += ",";
         temperaturePoints += temperatureHistory[currentIndex];
         temperaturePoints += " ";
+        webServer.sendContent(temperaturePoints);
     }
-    String escPoints = "";
+    webServer.sendContent("\" style=\"fill:none;stroke:black;stroke-width:3\" />");
+
+    webServer.sendContent("<polyline points=\"");
     for (int currentIndex = 0; currentIndex < historyLength; currentIndex++) {
-        maxValue = (maxValue < escHistory[currentIndex])? escHistory[currentIndex] : maxValue;
+        String escPoints = "";
+        maxValue = (maxValue < escHistory[currentIndex]) ? escHistory[currentIndex] : maxValue;
         escPoints += currentIndex;
         escPoints += ",";
         escPoints += escHistory[currentIndex];
         escPoints += " ";
+        webServer.sendContent(escPoints);
     }
-    String dtPoints = "";
+    webServer.sendContent("\" style=\"fill:none;stroke:black;stroke-width:3\" />");
+
+    webServer.sendContent("<polyline points=\"");
     for (int currentIndex = 0; currentIndex < historyLength; currentIndex++) {
-        maxValue = (maxValue < dtHistory[currentIndex])? dtHistory[currentIndex] : maxValue;
+        String dtPoints = "";
+        maxValue = (maxValue < dtHistory[currentIndex]) ? dtHistory[currentIndex] : maxValue;
         dtPoints += currentIndex;
         dtPoints += ",";
         dtPoints += dtHistory[currentIndex];
         dtPoints += " ";
+        webServer.sendContent(dtPoints);
     }
-    String graphData = "<svg height=\"" + maxValue + "\" width=\"1024\">";
-    graphData += "<polyline points=\"" + altitudePoints + "\" style=\"fill:none;stroke:black;stroke-width:3\" />";
-    graphData += "<polyline points=\"" + temperaturePoints + "\" style=\"fill:none;stroke:black;stroke-width:3\" />";
-    graphData += "<polyline points=\"" + escPoints + "\" style=\"fill:none;stroke:black;stroke-width:3\" />";
-    graphData += "<polyline points=\"" + dtPoints + "\" style=\"fill:none;stroke:black;stroke-width:3\" />";
-    graphData += "</svg>";
-    webServer.send(200, "image/svg+xml", graphData);
+    webServer.sendContent("\" style=\"fill:none;stroke:black;stroke-width:3\" />");
+
+    webServer.sendContent("</svg>");
 }
 
 void defaultPage() {
@@ -936,6 +950,7 @@ void defaultPage() {
             "<a href='saveChanges'>saveChanges</a><br/><br/>"
             "<a href='graphData'>Graph Data</a><br/><br/>"
             "<a href='graphSvg'>Graph SVG</a><br/><br/>"
+            "<a href='graphSvg?download'>Download SVG</a><br/><br/>"
             "</body></html>");
 }
 
@@ -1045,8 +1060,8 @@ void setup() {
 
     Wire.pins(SdaPin, SclPin);
     pressureSensor.begin();
-//    double temperature, pressure, altitude;
-//    getPressure(temperature, pressure, altitude);
+    //    double temperature, pressure, altitude;
+    //    getPressure(temperature, pressure, altitude);
     baselinePressure = pressureSensor.readPressure();
 
     Serial.print("baseline pressure: ");
