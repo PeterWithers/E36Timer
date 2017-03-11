@@ -98,14 +98,14 @@ volatile const unsigned long escSpinDownMs = 1000;
 volatile const unsigned long escSpinUpMs = 1000;
 volatile const unsigned long servoWipeMs = 1000;
 volatile const unsigned long displayStepMs = 500;
-volatile int editingStartMs = 0;
-volatile const unsigned long powerDownServoMs = 30 * 1000; // 30 seconds before the servo is powered down
-volatile const unsigned long powerDownEscSeconds = 300 * 1000; // 5 minutes before the ESC is powered down
+volatile unsigned long editingStartMs = 0;
+volatile const unsigned long powerDownServoMs = 30l * 1000l; // 30 seconds before the servo is powered down
+volatile const unsigned long powerDownEscSeconds = 300l * 1000l; // 5 minutes before the ESC is powered down
 
-const int motorSeconds[] = {2, 4, 5, 7, 10, 13, 15};
+const unsigned long motorSeconds[] = {2, 4, 5, 7, 10, 13, 15};
 const int motorSecondsSize = 6;
 volatile int motorSecondsIndex = 0;
-const int dethermalSeconds[] = {0, 5, 30, 60, 90, 120, 180, 240, 300};
+const unsigned long dethermalSeconds[] = {0, 5, 30, 60, 90, 120, 180, 240, 300};
 
 // start measured actual times
 // tested with the timer calibrated to produce 50.38hz
@@ -408,10 +408,10 @@ String getTelemetryString() {
 void spinUpMotor(int targetSpeed) {
     int escValue = escServo.read();
     if (targetSpeed > escValue) {
-        int wipeValue = escValue + (int) ((targetSpeed - escValue)*((millis() - lastStateChangeMs) / (float) escSpinUpMs));
-        wipeValue = (wipeValue < targetSpeed) ? wipeValue : targetSpeed;
-        wipeValue = (wipeValue > escValue) ? wipeValue : escValue;
-        escServo.write(wipeValue);
+        int escPosition = escValue + (int) ((targetSpeed - escValue)*((millis() - lastStateChangeMs) / (float) escSpinUpMs));
+        escPosition = (escPosition < targetSpeed) ? escPosition : targetSpeed;
+        escPosition = (escPosition > escValue) ? escPosition : escValue;
+        escServo.write(escPosition);
     } else {
         escServo.write(targetSpeed);
     }
@@ -419,19 +419,10 @@ void spinUpMotor(int targetSpeed) {
 
 void spinDownMotor() {
     int remainingTime = (motorSeconds[motorSecondsIndex] * 1000) - (millis() - lastStateChangeMs);
-    int spinDownValue = MinPwm + ((MaxPwm - MinPwm)*((float) remainingTime / (float) escSpinDownMs));
+    int spinDownValue = MinPwm + (int) ((MaxPwm - MinPwm) * (remainingTime / (float) escSpinDownMs));
     int escPosition = (remainingTime > 0) ? spinDownValue : MinPwm;
-    //    escPosition = (escPosition > MinPwm) ? escPosition - 1 : MinPwm;
-    escServo.write(escPosition);
-    //    if (escPosition > MinPwm) {
-    //    Serial.print("remainingTime: ");
-    //    Serial.print(remainingTime);
-    //    Serial.print(", spinDownValue: ");
-    //    Serial.print(spinDownValue);
-    //    Serial.print(", escPosition: ");
-    //    Serial.print(escPosition);
-    //    Serial.print(",");
-    //    }
+    escPosition = (escPosition > MinPwm) ? escPosition : MinPwm;
+    escPosition = (escPosition < MaxPwm) ? escPosition : MaxPwm;
     escServo.write(escPosition);
 }
 
@@ -499,11 +490,13 @@ void displayDethermalTime() {
 
 void powerUpDt() {
     dtServo.attach(ServoPWM, 1000, 2000); // enable the servo output
+    //dtServo.write(0);
     Serial.println("servo attach");
 }
 
 void powerUpEsc() {
     escServo.attach(EscPWM, 1000, 2000); // enable the ESC output
+    //escServo.write(0);
     Serial.println("esc attach");
 }
 
