@@ -1,0 +1,12 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+ Copyright (C) 2016 Peter Withers
+ 
+ @since March 24, 2016 21:51:11 PM (creation date)
+ @author @author : Peter Withers <peter@gthb-bambooradical.com>
+-->
+<WebView  xmlns:android="http://schemas.android.com/apk/res/android"
+          android:id="@+id/webview"
+          android:layout_width="fill_parent"
+          android:layout_height="fill_parent"
+/>
