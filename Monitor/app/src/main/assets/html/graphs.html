@@ -1,0 +1,51 @@
+<!DOCTYPE html>
+<!--
+ Copyright (C) 2016 Peter Withers
+ 
+ @since March 24, 2016 21:51:11 PM (creation date)
+ @author @author : Peter Withers <peter@gthb-bambooradical.com>
+-->
+<html xmlns="http://www.w3.org/1999/xhtml">
+    <head>
+        <title>Graphs HTML page</title>
+        <script src="../js/jquery.min.js"></script>
+        <script src="../js/moment.js"></script>
+        <script src="../js/Chart.min.js"></script>
+        <script type="text/javascript">
+            var flightChart;
+            $(document).ready(function () {
+                var ctx = document.getElementById("flightChart");
+                flightChart = new Chart(ctx, {
+                    type: 'line',
+                    data: {
+                        labels: ["Flight Chart"],
+                        datasets: [{
+                                label: 'altitude',
+                                data: [12, 19, 3, 5, 2, 3],
+                                backgroundColor: [
+                                    'rgba(54, 162, 235, 0.2)'
+                                ],
+                                borderColor: [
+                                    'rgba(54, 162, 235, 1)'
+                                ],
+                                borderWidth: 1
+                            }]
+                    },
+                    options: {
+                        scales: {
+                            yAxes: [{
+                                    ticks: {
+                                        beginAtZero: true
+                                    }
+                                }]
+                        }
+                    }
+                });
+            });</script>
+    </head>
+    <body>
+        <br/>
+        Graphs HTML page
+        <canvas id="flightChart" width="400" height="400"></canvas>
+    </body>
+</html>
