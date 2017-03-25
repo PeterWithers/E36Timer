@@ -20,8 +20,13 @@ import com.android.volley.Response;
 import com.android.volley.VolleyError;
 import com.android.volley.toolbox.StringRequest;
 import com.android.volley.toolbox.Volley;
+import java.io.FileNotFoundException;
+import java.io.FileOutputStream;
+import java.io.IOException;
+import java.text.SimpleDateFormat;
 import org.json.JSONException;
 import org.json.JSONObject;
+import java.util.Date;
 import java.util.List;
 
 /**
@@ -30,9 +35,16 @@ import java.util.List;
  */
 public class MainActivity extends AppCompatActivity {
 
+    enum MonitorState {
+        settings,
+        graph
+    }
+    MonitorState monitorState = MonitorState.settings;
     boolean connectedToTimer = false;
     FloatingActionButton connectionButton;
     WebView myWebView;
+    volatile String sharedJsonData = "";
+    static final Object jsonDataLock = new Object();
     RequestQueue requestQueue;
     Handler connectionCheckHandler = new Handler();
     Runnable connectionCheckRunnable = new Runnable() {
@@ -46,13 +58,50 @@ public class MainActivity extends AppCompatActivity {
                     //myWebView.loadUrl("file:///android_asset/html/index.html");
                     connectedToTimer = false;
                 }
-            } else if (!connectedToTimer) {
-                //myWebView.loadUrl("http://192.168.1.1/telemetry");
-                connectedToTimer = true;
+            } else {
+                switch (monitorState) {
+                    case graph:
+                        makeTelemetryRequest();
+                        break;
+                    case settings:
+                        myWebView.loadUrl("http://192.168.1.1/telemetry");
+                        break;
+                }
+                if (!connectedToTimer) {
+                    connectedToTimer = true;
+                }
             }
-            connectionCheckHandler.postDelayed(this, 500);
+            connectionCheckHandler.postDelayed(this, 2000);
         }
     };
+
+    private void makeTelemetryRequest() {
+        StringRequest telemetryRequest = new StringRequest(Request.Method.GET, "http://192.168.1.1/graph.json", //"file:///android_asset/html/telemetry.json",
+                new Response.Listener<String>() {
+            @Override
+            public void onResponse(String response) {
+                try {
+                    final JSONObject jsonObject = new JSONObject(response);
+                    myWebView.loadUrl("javascript:flightChart.data.datasets[0].data = " + jsonObject.get("altitudeHistory").toString() + ";");
+                    myWebView.loadUrl("javascript:flightChart.data.datasets[1].data = " + jsonObject.get("temperatureHistory").toString() + ";");
+                    myWebView.loadUrl("javascript:flightChart.data.datasets[2].data = " + jsonObject.get("escHistory").toString() + ";");
+                    myWebView.loadUrl("javascript:flightChart.data.datasets[3].data = " + jsonObject.get("dtHistory").toString() + ";");
+                    myWebView.loadUrl("javascript:flightChart.update();");
+                    synchronized (jsonDataLock) {
+                        sharedJsonData = response;
+                    }
+                } catch (JSONException e) {
+                    myWebView.loadUrl("javascript:document.write(\"" + e.getMessage() + "\");");
+                }
+            }
+        }, new Response.ErrorListener() {
+            @Override
+            public void onErrorResponse(VolleyError error) {
+                myWebView.loadUrl("http://192.168.1.1/graph.json");
+            }
+        });
+        requestQueue.add(telemetryRequest);
+    }
 
     @Override
     protected void onCreate(Bundle savedInstanceState) {
@@ -66,26 +115,19 @@ public class MainActivity extends AppCompatActivity {
         addFlightTest.setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View view) {
-                StringRequest telemetryRequest = new StringRequest(Request.Method.GET, "http://192.168.1.1/graph.json", //"file:///android_asset/html/telemetry.json",
-                        new Response.Listener<String>() {
-                    @Override
-                    public void onResponse(String response) {
-                        try {
-                            final JSONObject jsonObject = new JSONObject(response);
-                            myWebView.loadUrl("javascript:flightChart.data.datasets[0].data = " + jsonObject.get("altitudeHistory").toString() + ";");
-                            myWebView.loadUrl("javascript:flightChart.data.datasets[1].data = " + jsonObject.get("temperatureHistory").toString() + ";");
-                            myWebView.loadUrl("javascript:flightChart.update();");
-                        } catch (JSONException e) {
-                            myWebView.loadUrl("javascript:document.write(\"" + e.getMessage() + "\");");
-                        }
+                try {
+                    final SimpleDateFormat simpleDateFormat = new SimpleDateFormat("dd-MMM-yyyy hh:mm");
+                    FileOutputStream fileOutputStream = openFileOutput(simpleDateFormat.format(new Date()), Context.MODE_PRIVATE);
+                    synchronized (jsonDataLock) {
+                        fileOutputStream.write(sharedJsonData.getBytes());
                     }
-                }, new Response.ErrorListener() {
-                    @Override
-                    public void onErrorResponse(VolleyError error) {
-                        myWebView.loadUrl("http://192.168.1.1/graph.json");
+                    fileOutputStream.close();
+                    for (String fileName : fileList()) {
+                        myWebView.loadUrl("javascript:document.write(\"" + fileName + "<br/>\");");
                     }
-                });
-                requestQueue.add(telemetryRequest);
+                } catch (IOException e) {
+                    myWebView.loadUrl("javascript:document.write(\"" + e.getMessage() + "\");");
+                }
             }
         });
 
@@ -94,6 +136,7 @@ public class MainActivity extends AppCompatActivity {
         flightGraphsButton.setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View view) {
+                monitorState = MonitorState.graph;
                 //myWebView.loadUrl("http://192.168.1.1/graph.json");
                 myWebView.loadUrl("file:///android_asset/html/graphs.html");
                 addFlightTest.show();
@@ -104,6 +147,7 @@ public class MainActivity extends AppCompatActivity {
         connectionButton.setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View view) {
+                monitorState = MonitorState.settings;
                 WifiManager wifiManager = (WifiManager) getApplicationContext().getSystemService(Context.WIFI_SERVICE);
                 WifiInfo wifiInfo = wifiManager.getConnectionInfo();
                 String wifiMessage = "Connected to: " + wifiInfo.getSSID();
