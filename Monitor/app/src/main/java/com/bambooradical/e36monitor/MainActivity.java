@@ -42,6 +42,8 @@ public class MainActivity extends AppCompatActivity {
     MonitorState monitorState = MonitorState.settings;
     boolean connectedToTimer = false;
     FloatingActionButton connectionButton;
+    FloatingActionButton addFlightTest;
+    FloatingActionButton flightGraphsButton;
     WebView myWebView;
     volatile String sharedJsonData = "";
     static final Object jsonDataLock = new Object();
@@ -57,19 +59,24 @@ public class MainActivity extends AppCompatActivity {
                 if (connectedToTimer) {
                     //myWebView.loadUrl("file:///android_asset/html/index.html");
                     connectedToTimer = false;
+                    addFlightTest.hide();
+                    flightGraphsButton.hide();
                 }
             } else {
                 switch (monitorState) {
                     case graph:
                         makeTelemetryRequest();
+                        addFlightTest.show();
                         break;
                     case settings:
                         myWebView.loadUrl("http://192.168.1.1/telemetry");
+                        addFlightTest.hide();
                         break;
                 }
                 if (!connectedToTimer) {
                     connectedToTimer = true;
                 }
+                flightGraphsButton.show();
             }
             connectionCheckHandler.postDelayed(this, 2000);
         }
@@ -110,7 +117,7 @@ public class MainActivity extends AppCompatActivity {
         requestQueue = Volley.newRequestQueue(getApplicationContext());
         myWebView = (WebView) findViewById(R.id.webview);
         myWebView.getSettings().setJavaScriptEnabled(true);
-        final FloatingActionButton addFlightTest = (FloatingActionButton) findViewById(R.id.addFlightTest);
+        addFlightTest = (FloatingActionButton) findViewById(R.id.addFlightTest);
 //        addFlightTest.setEnabled(false);
         addFlightTest.setOnClickListener(new View.OnClickListener() {
             @Override
@@ -131,7 +138,7 @@ public class MainActivity extends AppCompatActivity {
             }
         });
 
-        final FloatingActionButton flightGraphsButton = (FloatingActionButton) findViewById(R.id.flightGraphs);
+        flightGraphsButton = (FloatingActionButton) findViewById(R.id.flightGraphs);
 //        flightGraphsButton.setEnabled(false);
         flightGraphsButton.setOnClickListener(new View.OnClickListener() {
             @Override
