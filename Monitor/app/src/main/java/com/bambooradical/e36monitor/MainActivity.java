@@ -11,7 +11,10 @@ import android.os.Bundle;
 import android.os.Handler;
 import android.support.design.widget.FloatingActionButton;
 import android.support.design.widget.Snackbar;
+import android.support.v4.view.GravityCompat;
+import android.support.v4.widget.DrawerLayout;
 import android.support.v7.app.AppCompatActivity;
+import android.view.MenuItem;
 import android.view.View;
 import android.webkit.WebView;
 import android.widget.AdapterView;
@@ -30,8 +33,10 @@ import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.InputStreamReader;
 import java.text.SimpleDateFormat;
+import org.json.JSONArray;
 import org.json.JSONException;
 import org.json.JSONObject;
+import java.util.Arrays;
 import java.util.Date;
 import java.util.List;
 
@@ -48,10 +53,11 @@ public class MainActivity extends AppCompatActivity {
     MonitorState monitorState = MonitorState.settings;
     boolean connectedToTimer = false;
     FloatingActionButton connectionButton;
-    FloatingActionButton addFlightTest;
+    FloatingActionButton saveFlightData;
     FloatingActionButton flightGraphsButton;
     private ListView appDrawerList;
     private ArrayAdapter<String> appDrawListAdapter;
+    private DrawerLayout appDrawerLayout;
     WebView myWebView;
     volatile String sharedJsonData = "";
     static final Object jsonDataLock = new Object();
@@ -65,20 +71,20 @@ public class MainActivity extends AppCompatActivity {
             WifiInfo wifiInfo = wifiManager.getConnectionInfo();
             if (wifiInfo.getSSID() == null || !wifiInfo.getSSID().equals("\"E36 Timer\"")) {
                 if (connectedToTimer) {
-                    //myWebView.loadUrl("file:///android_asset/html/index.html");
+                    myWebView.loadUrl("file:///android_asset/html/graphs.html");
                     connectedToTimer = false;
-                    addFlightTest.hide();
+                    saveFlightData.hide();
                     flightGraphsButton.hide();
                 }
             } else {
                 switch (monitorState) {
                     case graph:
                         makeTelemetryRequest();
-                        addFlightTest.show();
+                        saveFlightData.show();
                         break;
                     case settings:
                         myWebView.loadUrl("http://192.168.1.1/telemetry");
-                        addFlightTest.hide();
+                        saveFlightData.hide();
                         break;
                 }
                 if (!connectedToTimer) {
@@ -93,10 +99,16 @@ public class MainActivity extends AppCompatActivity {
     private void updateGraphWithJson(String jsonDataString) {
         try {
             final JSONObject jsonObject = new JSONObject(jsonDataString);
+            final JSONArray escHistory = (JSONArray) jsonObject.get("escHistory");
+            final JSONArray dtHistory = (JSONArray) jsonObject.get("dtHistory");
+//            for (int index = 0; index < escHistory.length(); index++) {
+//                escHistory.put((int) escHistory.get(index) / 10);
+//                dtHistory.put((int) dtHistory.get(index) / 10);
+//            }
             myWebView.loadUrl("javascript:flightChart.data.datasets[0].data = " + jsonObject.get("altitudeHistory").toString() + ";");
             myWebView.loadUrl("javascript:flightChart.data.datasets[1].data = " + jsonObject.get("temperatureHistory").toString() + ";");
-            myWebView.loadUrl("javascript:flightChart.data.datasets[2].data = " + jsonObject.get("escHistory").toString() + ";");
-            myWebView.loadUrl("javascript:flightChart.data.datasets[3].data = " + jsonObject.get("dtHistory").toString() + ";");
+            myWebView.loadUrl("javascript:flightChart.data.datasets[2].data = " + escHistory.toString() + ";");
+            myWebView.loadUrl("javascript:flightChart.data.datasets[3].data = " + dtHistory.toString() + ";");
             myWebView.loadUrl("javascript:flightChart.update();");
             synchronized (jsonDataLock) {
                 sharedJsonData = jsonDataString;
@@ -127,19 +139,24 @@ public class MainActivity extends AppCompatActivity {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_main);
         appDrawerList = (ListView) findViewById(R.id.savedFlightsList);
-        final String[] fileaNameArray = fileList();
-        appDrawListAdapter = new ArrayAdapter<String>(this, android.R.layout.simple_list_item_1, fileaNameArray);
+        appDrawListAdapter = new ArrayAdapter<String>(this, android.R.layout.simple_list_item_1);
         appDrawerList.setAdapter(appDrawListAdapter);
         requestQueue = Volley.newRequestQueue(getApplicationContext());
         myWebView = (WebView) findViewById(R.id.webview);
         myWebView.getSettings().setJavaScriptEnabled(true);
-        addFlightTest = (FloatingActionButton) findViewById(R.id.addFlightTest);
-//        addFlightTest.setEnabled(false);
+        myWebView.loadUrl("file:///android_asset/html/graphs.html");
+        saveFlightData = (FloatingActionButton) findViewById(R.id.saveFlightData);
+        flightGraphsButton = (FloatingActionButton) findViewById(R.id.flightGraphs);
+        flightGraphsButton.hide();
+        saveFlightData.hide();
         appDrawerList.setOnItemClickListener(new AdapterView.OnItemClickListener() {
             @Override
             public void onItemClick(AdapterView<?> parent, View view, int position, long id) {
                 try {
-                    FileInputStream inputStream = openFileInput(fileaNameArray[position]);
+                    if (!myWebView.getUrl().equals("file:///android_asset/html/graphs.html")) {
+                        myWebView.loadUrl("file:///android_asset/html/graphs.html");
+                    }
+                    FileInputStream inputStream = openFileInput(appDrawListAdapter.getItem(position));
                     InputStreamReader inputStreamReader = new InputStreamReader(inputStream);
                     BufferedReader bufferedReader = new BufferedReader(inputStreamReader);
                     StringBuilder stringBuilder = new StringBuilder();
@@ -148,13 +165,42 @@ public class MainActivity extends AppCompatActivity {
                         stringBuilder.append(line);
                     }
                     updateGraphWithJson(stringBuilder.toString());
-                    Toast.makeText(MainActivity.this, fileaNameArray[position], Toast.LENGTH_SHORT).show();
+                    Toast.makeText(MainActivity.this, appDrawListAdapter.getItem(position), Toast.LENGTH_SHORT).show();
                 } catch (IOException e) {
                     Toast.makeText(MainActivity.this, e.getMessage(), Toast.LENGTH_LONG).show();
                 }
+                appDrawerLayout.closeDrawers();
             }
         });
-        addFlightTest.setOnClickListener(new View.OnClickListener() {
+        appDrawerLayout = (DrawerLayout) findViewById(R.id.drawer_layout);
+        getSupportActionBar().setDisplayHomeAsUpEnabled(true);
+        getSupportActionBar().setHomeButtonEnabled(true);
+        appDrawerLayout.addDrawerListener(new DrawerLayout.DrawerListener() {
+
+            @Override
+            public void onDrawerSlide(View drawerView, float slideOffset) {
+
+            }
+
+            @Override
+            public void onDrawerOpened(View drawerView) {
+                final String[] fileNameArray = fileList();
+                Arrays.sort(fileNameArray);
+                appDrawListAdapter.clear();
+                appDrawListAdapter.addAll(Arrays.asList(fileNameArray));
+            }
+
+            @Override
+            public void onDrawerClosed(View drawerView) {
+
+            }
+
+            @Override
+            public void onDrawerStateChanged(int newState) {
+
+            }
+        });
+        saveFlightData.setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View view) {
                 try {
@@ -172,16 +218,13 @@ public class MainActivity extends AppCompatActivity {
                 }
             }
         });
-
-        flightGraphsButton = (FloatingActionButton) findViewById(R.id.flightGraphs);
-//        flightGraphsButton.setEnabled(false);
         flightGraphsButton.setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View view) {
                 monitorState = MonitorState.graph;
                 //myWebView.loadUrl("http://192.168.1.1/graph.json");
                 myWebView.loadUrl("file:///android_asset/html/graphs.html");
-                addFlightTest.show();
+                saveFlightData.show();
                 Snackbar.make(view, "Flight Graphs", Snackbar.LENGTH_LONG).setAction("Action", null).show();
             }
         });
@@ -212,13 +255,26 @@ public class MainActivity extends AppCompatActivity {
                     //myWebView.loadUrl("file:///android_asset/html/connected.html");
                     //    myWebView.loadUrl("http://192.168.1.1/graph.json");
                 }
-                addFlightTest.hide();
+                saveFlightData.hide();
                 myWebView.loadUrl("http://192.168.1.1/telemetry");
-//                flightGraphsButton.setEnabled(true);
                 Snackbar.make(view, wifiMessage, Snackbar.LENGTH_LONG).setAction("Action", null).show();
             }
         });
         connectionCheckHandler.postDelayed(connectionCheckRunnable, 0);
+    }
+
+    @Override
+    public boolean onOptionsItemSelected(MenuItem item) {
+        switch (item.getItemId()) {
+            case android.R.id.home:
+                if (appDrawerLayout.isDrawerOpen(GravityCompat.START)) {
+                    appDrawerLayout.closeDrawers();
+                } else {
+                    appDrawerLayout.openDrawer(GravityCompat.START);
+                }
+                return true;
+        }
+        return super.onOptionsItemSelected(item);
     }
 
     @Override
