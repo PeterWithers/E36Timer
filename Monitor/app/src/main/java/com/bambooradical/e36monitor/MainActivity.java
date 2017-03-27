@@ -14,15 +14,21 @@ import android.support.design.widget.Snackbar;
 import android.support.v7.app.AppCompatActivity;
 import android.view.View;
 import android.webkit.WebView;
+import android.widget.AdapterView;
+import android.widget.ArrayAdapter;
+import android.widget.ListView;
+import android.widget.Toast;
 import com.android.volley.Request;
 import com.android.volley.RequestQueue;
 import com.android.volley.Response;
 import com.android.volley.VolleyError;
 import com.android.volley.toolbox.StringRequest;
 import com.android.volley.toolbox.Volley;
-import java.io.FileNotFoundException;
+import java.io.BufferedReader;
+import java.io.FileInputStream;
 import java.io.FileOutputStream;
 import java.io.IOException;
+import java.io.InputStreamReader;
 import java.text.SimpleDateFormat;
 import org.json.JSONException;
 import org.json.JSONObject;
@@ -44,6 +50,8 @@ public class MainActivity extends AppCompatActivity {
     FloatingActionButton connectionButton;
     FloatingActionButton addFlightTest;
     FloatingActionButton flightGraphsButton;
+    private ListView appDrawerList;
+    private ArrayAdapter<String> appDrawListAdapter;
     WebView myWebView;
     volatile String sharedJsonData = "";
     static final Object jsonDataLock = new Object();
@@ -82,24 +90,28 @@ public class MainActivity extends AppCompatActivity {
         }
     };
 
+    private void updateGraphWithJson(String jsonDataString) {
+        try {
+            final JSONObject jsonObject = new JSONObject(jsonDataString);
+            myWebView.loadUrl("javascript:flightChart.data.datasets[0].data = " + jsonObject.get("altitudeHistory").toString() + ";");
+            myWebView.loadUrl("javascript:flightChart.data.datasets[1].data = " + jsonObject.get("temperatureHistory").toString() + ";");
+            myWebView.loadUrl("javascript:flightChart.data.datasets[2].data = " + jsonObject.get("escHistory").toString() + ";");
+            myWebView.loadUrl("javascript:flightChart.data.datasets[3].data = " + jsonObject.get("dtHistory").toString() + ";");
+            myWebView.loadUrl("javascript:flightChart.update();");
+            synchronized (jsonDataLock) {
+                sharedJsonData = jsonDataString;
+            }
+        } catch (JSONException e) {
+            myWebView.loadUrl("javascript:document.write(\"" + e.getMessage() + "\");");
+        }
+    }
+
     private void makeTelemetryRequest() {
         StringRequest telemetryRequest = new StringRequest(Request.Method.GET, "http://192.168.1.1/graph.json", //"file:///android_asset/html/telemetry.json",
                 new Response.Listener<String>() {
             @Override
             public void onResponse(String response) {
-                try {
-                    final JSONObject jsonObject = new JSONObject(response);
-                    myWebView.loadUrl("javascript:flightChart.data.datasets[0].data = " + jsonObject.get("altitudeHistory").toString() + ";");
-                    myWebView.loadUrl("javascript:flightChart.data.datasets[1].data = " + jsonObject.get("temperatureHistory").toString() + ";");
-                    myWebView.loadUrl("javascript:flightChart.data.datasets[2].data = " + jsonObject.get("escHistory").toString() + ";");
-                    myWebView.loadUrl("javascript:flightChart.data.datasets[3].data = " + jsonObject.get("dtHistory").toString() + ";");
-                    myWebView.loadUrl("javascript:flightChart.update();");
-                    synchronized (jsonDataLock) {
-                        sharedJsonData = response;
-                    }
-                } catch (JSONException e) {
-                    myWebView.loadUrl("javascript:document.write(\"" + e.getMessage() + "\");");
-                }
+                updateGraphWithJson(response);
             }
         }, new Response.ErrorListener() {
             @Override
@@ -114,11 +126,34 @@ public class MainActivity extends AppCompatActivity {
     protected void onCreate(Bundle savedInstanceState) {
         super.onCreate(savedInstanceState);
         setContentView(R.layout.activity_main);
+        appDrawerList = (ListView) findViewById(R.id.savedFlightsList);
+        final String[] fileaNameArray = fileList();
+        appDrawListAdapter = new ArrayAdapter<String>(this, android.R.layout.simple_list_item_1, fileaNameArray);
+        appDrawerList.setAdapter(appDrawListAdapter);
         requestQueue = Volley.newRequestQueue(getApplicationContext());
         myWebView = (WebView) findViewById(R.id.webview);
         myWebView.getSettings().setJavaScriptEnabled(true);
         addFlightTest = (FloatingActionButton) findViewById(R.id.addFlightTest);
 //        addFlightTest.setEnabled(false);
+        appDrawerList.setOnItemClickListener(new AdapterView.OnItemClickListener() {
+            @Override
+            public void onItemClick(AdapterView<?> parent, View view, int position, long id) {
+                try {
+                    FileInputStream inputStream = openFileInput(fileaNameArray[position]);
+                    InputStreamReader inputStreamReader = new InputStreamReader(inputStream);
+                    BufferedReader bufferedReader = new BufferedReader(inputStreamReader);
+                    StringBuilder stringBuilder = new StringBuilder();
+                    String line;
+                    while ((line = bufferedReader.readLine()) != null) {
+                        stringBuilder.append(line);
+                    }
+                    updateGraphWithJson(stringBuilder.toString());
+                    Toast.makeText(MainActivity.this, fileaNameArray[position], Toast.LENGTH_SHORT).show();
+                } catch (IOException e) {
+                    Toast.makeText(MainActivity.this, e.getMessage(), Toast.LENGTH_LONG).show();
+                }
+            }
+        });
         addFlightTest.setOnClickListener(new View.OnClickListener() {
             @Override
             public void onClick(View view) {
