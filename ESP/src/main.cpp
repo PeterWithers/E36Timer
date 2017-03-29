@@ -204,72 +204,76 @@ void pinChangeInterrupt() {
 }
 
 void sendTelemetry() {
-    Serial.print("machineState: ");
+}
+
+String getTelemetryJson() {
+    String returnString = "machineState: '";
     switch (machineState) {
         case setupSystem:
-            Serial.print("setupSystem");
+            returnString += "setupSystem";
             break;
         case throttleMax:
-            Serial.print("throttleMax");
+            returnString += "throttleMax";
             break;
         case waitingButtonRelease1:
-            Serial.print("waitingButtonRelease1");
+            returnString += "waitingButtonRelease1";
             break;
         case throttleMin:
-            Serial.print("throttleMin");
+            returnString += "throttleMin";
             break;
         case waitingButtonRelease2:
-            Serial.print("waitingButtonRelease2");
+            returnString += "waitingButtonRelease2";
             break;
         case startWipe1:
-            Serial.print("startWipe1");
+            returnString += "startWipe1";
             break;
         case endWipe1:
-            Serial.print("endWipe1");
+            returnString += "endWipe1";
             break;
         case editMotorTime:
-            Serial.print("editMotorTime");
+            returnString += "editMotorTime";
             break;
         case startWipe2:
-            Serial.print("startWipe2");
+            returnString += "startWipe2";
             break;
         case endWipe2:
-            Serial.print("endWipe2");
+            returnString += "endWipe2";
             break;
         case editDtTime:
-            Serial.print("editDtTime");
+            returnString += "editDtTime";
             break;
         case waitingButtonStart:
-            Serial.print("waitingButtonStart");
+            returnString += "waitingButtonStart";
             break;
         case waitingButtonRelease:
-            Serial.print("waitingButtonRelease");
+            returnString += "waitingButtonRelease";
             break;
         case motorRun:
-            Serial.print("motorRun");
+            returnString += "motorRun";
             break;
         case freeFlight:
-            Serial.print("freeFlight");
+            returnString += "freeFlight";
             break;
         case triggerDT:
-            Serial.print("triggerDT");
+            returnString += "triggerDT";
             break;
         case waitingForRestart:
-            Serial.print("waitingForRestart");
+            returnString += "waitingForRestart";
             break;
     }
     int servoPosition = dtServo.read();
     int escPosition = escServo.read();
-    Serial.print(", servoPosition: ");
-    Serial.print(servoPosition);
-    Serial.print(", escPosition: ");
-    Serial.print(escPosition);
-    Serial.print(", dethermalSeconds: ");
-    Serial.print(dethermalSeconds[dethermalSecondsIndex]);
-    Serial.print(", motorSeconds: ");
-    Serial.print(motorSeconds[motorSecondsIndex]);
-    Serial.print(", lastStateChangeMs: ");
-    Serial.println(millis() - lastStateChangeMs);
+    returnString += "'; servoPosition: ";
+    returnString += servoPosition;
+    returnString += "; escPosition: ";
+    returnString += escPosition;
+    returnString += "; dethermalSeconds: ";
+    returnString += dethermalSeconds[dethermalSecondsIndex];
+    returnString += "; motorSeconds: ";
+    returnString += motorSeconds[motorSecondsIndex];
+    returnString += "; lastStateChangeMs: ";
+    returnString += (millis() - lastStateChangeMs);
+    return returnString;
 }
 
 bool getPressure(double &temperature, double &pressure, double &altitude) {
@@ -829,29 +833,36 @@ void getTelemetry() {
 }
 
 void getGraphData() {
-    String graphData = "{historyIndex: ";
+    int maxRecords = (webServer.hasArg("start")) ? 100 : historyLength / 2;
+    int startIndex = (webServer.hasArg("start")) ? webServer.arg("start").toInt() : 0;
+    int endIndex = (startIndex + maxRecords < historyLength) ? startIndex + maxRecords : historyLength;
+    String graphData = "{";
+    graphData += getTelemetryJson();
+    graphData += "; historyIndex: ";
     graphData += historyIndex;
+    graphData += "; startIndex: ";
+    graphData += startIndex;
     graphData += "; altitudeHistory: [";
-    for (int currentIndex = 0; currentIndex < historyLength; currentIndex++) {
+    for (int currentIndex = startIndex; currentIndex < endIndex; currentIndex++) {
         graphData += altitudeHistory[currentIndex];
         graphData += ", ";
     }
     graphData += "];";
     graphData += "temperatureHistory: [";
-    for (int currentIndex = 0; currentIndex < historyLength; currentIndex++) {
+    for (int currentIndex = startIndex; currentIndex < endIndex; currentIndex++) {
         graphData += temperatureHistory[currentIndex];
         graphData += ", ";
     }
     graphData += "];";
     graphData += "dtHistory: [";
-    for (int currentIndex = 0; currentIndex < historyLength; currentIndex++) {
-        graphData += dtHistory[currentIndex];
+    for (int currentIndex = startIndex; currentIndex < endIndex; currentIndex++) {
+        graphData += (dtHistory[currentIndex] / 10);
         graphData += ", ";
     }
     graphData += "];";
     graphData += "escHistory: [";
-    for (int currentIndex = 0; currentIndex < historyLength; currentIndex++) {
-        graphData += escHistory[currentIndex];
+    for (int currentIndex = startIndex; currentIndex < endIndex; currentIndex++) {
+        graphData += (escHistory[currentIndex] / 10);
         graphData += ", ";
     }
     graphData += "]}";
@@ -868,7 +879,7 @@ void getGraphSvg() {
     webServer.setContentLength(CONTENT_LENGTH_UNKNOWN);
     String startSvg = "<svg xmlns=\"http://www.w3.org/2000/svg\" height=\"";
     startSvg += maxSvgValue;
-    startSvg += "\" width=\"1024\">";
+    startSvg += "\" width=\"512\">";
 
     webServer.send(200, dataType, startSvg);
 
@@ -881,7 +892,7 @@ void getGraphSvg() {
         altitudePoints += " ";
         webServer.sendContent(altitudePoints);
     }
-    webServer.sendContent("\" style=\"fill:none;stroke:"+altitudeColour+";stroke-width:1\" />");
+    webServer.sendContent("\" style=\"fill:none;stroke:" + altitudeColour + ";stroke-width:1\" />");
 
     webServer.sendContent("<polyline points=\"");
     for (int currentIndex = 0; currentIndex < historyLength; currentIndex++) {
@@ -892,7 +903,7 @@ void getGraphSvg() {
         temperaturePoints += " ";
         webServer.sendContent(temperaturePoints);
     }
-    webServer.sendContent("\" style=\"fill:none;stroke:"+temperatureColour+";stroke-width:1\" />");
+    webServer.sendContent("\" style=\"fill:none;stroke:" + temperatureColour + ";stroke-width:1\" />");
 
     webServer.sendContent("<polyline points=\"");
     for (int currentIndex = 0; currentIndex < historyLength; currentIndex++) {
@@ -903,7 +914,7 @@ void getGraphSvg() {
         escPoints += " ";
         webServer.sendContent(escPoints);
     }
-    webServer.sendContent("\" style=\"fill:none;stroke:"+escColour+";stroke-width:1\" />");
+    webServer.sendContent("\" style=\"fill:none;stroke:" + escColour + ";stroke-width:1\" />");
 
     webServer.sendContent("<polyline points=\"");
     for (int currentIndex = 0; currentIndex < historyLength; currentIndex++) {
@@ -914,7 +925,7 @@ void getGraphSvg() {
         dtPoints += " ";
         webServer.sendContent(dtPoints);
     }
-    webServer.sendContent("\" style=\"fill:none;stroke:"+dtColour+";stroke-width:1\" />");
+    webServer.sendContent("\" style=\"fill:none;stroke:" + dtColour + ";stroke-width:1\" />");
 
     webServer.sendContent("</svg>");
 }
