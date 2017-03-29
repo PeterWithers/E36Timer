@@ -49,8 +49,8 @@ int maxSvgValue = 0;
 // end temporary defines
 
 #define IndicatorLed     2
-#define ServoPWM         4
-#define EscPWM           5
+#define ServoPWM         1 // shared with TX
+#define EscPWM           3 // shared with RX
 #define ButtonPin        0
 #define SdaPin           12
 #define SclPin           14
@@ -271,6 +271,8 @@ String getTelemetryJson() {
     returnString += dethermalSeconds[dethermalSecondsIndex];
     returnString += "; motorSeconds: ";
     returnString += motorSeconds[motorSecondsIndex];
+    returnString += "; rssi: ";
+    returnString += WiFi.RSSI();
     returnString += "; lastStateChangeMs: ";
     returnString += (millis() - lastStateChangeMs);
     return returnString;
