@@ -544,8 +544,8 @@ bool checkDtPacket() {
 void updateHistory() {
     int currentIndex = (millis() / 1000) % historyLength;
     if (currentIndex != historyIndex) {
-        float temperature = pressureSensor.readTemperature();
-        float altitude = pressureSensor.readAltitude(baselinePressure);
+        float temperature = (hasPressureSensor) ? pressureSensor.readTemperature() : 0;
+        float altitude = (hasPressureSensor) ? pressureSensor.readAltitude(baselinePressure) : 0;
         temperatureHistory[currentIndex] = temperature;
         altitudeHistory[currentIndex] = altitude;
         escHistory[currentIndex] = escServo.read();
@@ -971,6 +971,7 @@ void defaultPage() {
             "<a href='motorIncrease'>motorIncrease</a><br/><br/>"
             "<a href='dtDecrease'>dtDecrease</a>&nbsp;"
             "<a href='dtIncrease'>dtIncrease</a><br/><br/>"
+            "<a href='toggleSensors'>toggleSensors</a><br/><br/>"
             "<a href='saveChanges'>saveChanges</a><br/><br/>"
             "<a href='graph.json'>Graph Data</a><br/><br/>"
             "<a href='graph.svg'>Graph SVG</a><br/><br/>"
@@ -1033,6 +1034,11 @@ void getMotorRun() {
     defaultPage();
 }
 
+void toggleSensors() {
+    hasPressureSensor = !hasPressureSensor;
+    webServer.sendContent((hasPressureSensor) ? "using sensors" : "ignoring sensors");
+}
+
 void setup() {
     Serial.begin(115200);
     delay(10);
@@ -1069,6 +1075,7 @@ void setup() {
         webServer.on("/dtDecrease", dtDecrease);
         webServer.on("/dtIncrease", dtIncrease);
         webServer.on("/saveChanges", saveChanges);
+        webServer.on("/toggleSensors", toggleSensors);
         webServer.onNotFound(defaultPage);
         webServer.begin();
     } else {
