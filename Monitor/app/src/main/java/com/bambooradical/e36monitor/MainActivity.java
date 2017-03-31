@@ -31,6 +31,7 @@ import java.io.BufferedReader;
 import java.io.FileInputStream;
 import java.io.FileOutputStream;
 import java.io.IOException;
+import java.io.InputStream;
 import java.io.InputStreamReader;
 import java.text.SimpleDateFormat;
 import org.json.JSONArray;
@@ -101,12 +102,33 @@ public class MainActivity extends AppCompatActivity {
             final JSONObject jsonObject = new JSONObject(jsonDataString);
             final JSONArray escHistory = (JSONArray) jsonObject.get("escHistory");
             final JSONArray dtHistory = (JSONArray) jsonObject.get("dtHistory");
-//            for (int index = 0; index < escHistory.length(); index++) {
-//                escHistory.put((int) escHistory.get(index) / 10);
-//                dtHistory.put((int) dtHistory.get(index) / 10);
-//            }
-            myWebView.loadUrl("javascript:flightChart.data.datasets[0].data = " + jsonObject.get("altitudeHistory").toString() + ";");
-            myWebView.loadUrl("javascript:flightChart.data.datasets[1].data = " + jsonObject.get("temperatureHistory").toString() + ";");
+            final JSONArray altitudeHistory = (JSONArray) jsonObject.get("altitudeHistory");
+            final JSONArray temperatureHistory = (JSONArray) jsonObject.get("temperatureHistory");
+            double rmsValue0 = 0;
+            double rmsValue1 = 0;
+            double rmsValue2 = 0;
+            double rmsValue3 = 0;
+            double rmsValue4 = 0;
+            double rmsValue5 = 0;
+            final JSONArray altitudeHistoryRms = new JSONArray();
+            try {
+                for (int index = 0; index < altitudeHistory.length(); index++) {
+                    final Double value = altitudeHistory.getDouble(index);
+                    rmsValue5 = rmsValue4;
+                    rmsValue4 = rmsValue3;
+                    rmsValue3 = rmsValue2;
+                    rmsValue2 = rmsValue1;
+                    rmsValue1 = rmsValue0;
+                    rmsValue0 = value * value;
+//                     altitudeHistoryRms.put(Math.sqrt((rmsValue5 + rmsValue4 + rmsValue3 + rmsValue2 + rmsValue1 + rmsValue0) / 6));
+                    altitudeHistoryRms.put(Math.sqrt((rmsValue5 * 0.1 + rmsValue4 * 0.1 + rmsValue3 * 0.1 + rmsValue2 * 0.5 + rmsValue1 * 0.1 + rmsValue0 * 0.1)));
+//                    altitudeHistoryRms.put(value);
+                }
+            } catch (JSONException e) {
+//                Toast.makeText(MainActivity.this, e.getMessage(), Toast.LENGTH_SHORT).show();
+            }
+            myWebView.loadUrl("javascript:flightChart.data.datasets[0].data = " + altitudeHistoryRms.toString() + ";");
+            myWebView.loadUrl("javascript:flightChart.data.datasets[1].data = " + temperatureHistory.toString() + ";");
             myWebView.loadUrl("javascript:flightChart.data.datasets[2].data = " + escHistory.toString() + ";");
             myWebView.loadUrl("javascript:flightChart.data.datasets[3].data = " + dtHistory.toString() + ";");
             myWebView.loadUrl("javascript:flightChart.update();");
@@ -114,7 +136,7 @@ public class MainActivity extends AppCompatActivity {
                 sharedJsonData = jsonDataString;
             }
         } catch (JSONException e) {
-            myWebView.loadUrl("javascript:document.write(\"" + e.getMessage() + "\");");
+            Toast.makeText(MainActivity.this, e.getMessage(), Toast.LENGTH_SHORT).show();
         }
     }
 
@@ -153,10 +175,20 @@ public class MainActivity extends AppCompatActivity {
             @Override
             public void onItemClick(AdapterView<?> parent, View view, int position, long id) {
                 try {
-                    if (!myWebView.getUrl().equals("file:///android_asset/html/graphs.html")) {
-                        myWebView.loadUrl("file:///android_asset/html/graphs.html");
+//                    if (!myWebView.getUrl().equals("file:///android_asset/html/graphs.html")) {
+//                        myWebView.loadUrl("file:///android_asset/html/graphs.html");
+//                    }
+                    String selectedValue = appDrawListAdapter.getItem(position);
+                    InputStream inputStream;
+                    if ("demo data 1".equals(selectedValue)) {
+                        inputStream = getAssets().open("html/telemetry.json");
+                    } else if ("demo data 2".equals(selectedValue)) {
+                        inputStream = getAssets().open("html/telemetry_1.json");
+                    } else if ("demo data 3".equals(selectedValue)) {
+                        inputStream = getAssets().open("html/telemetry_2.json");
+                    } else {
+                        inputStream = openFileInput(appDrawListAdapter.getItem(position));
                     }
-                    FileInputStream inputStream = openFileInput(appDrawListAdapter.getItem(position));
                     InputStreamReader inputStreamReader = new InputStreamReader(inputStream);
                     BufferedReader bufferedReader = new BufferedReader(inputStreamReader);
                     StringBuilder stringBuilder = new StringBuilder();
@@ -187,6 +219,9 @@ public class MainActivity extends AppCompatActivity {
                 final String[] fileNameArray = fileList();
                 Arrays.sort(fileNameArray);
                 appDrawListAdapter.clear();
+                appDrawListAdapter.add("demo data 1");
+                appDrawListAdapter.add("demo data 2");
+                appDrawListAdapter.add("demo data 3");
                 appDrawListAdapter.addAll(Arrays.asList(fileNameArray));
             }
 
@@ -210,11 +245,8 @@ public class MainActivity extends AppCompatActivity {
                         fileOutputStream.write(sharedJsonData.getBytes());
                     }
                     fileOutputStream.close();
-                    for (String fileName : fileList()) {
-                        myWebView.loadUrl("javascript:document.write(\"" + fileName + "<br/>\");");
-                    }
                 } catch (IOException e) {
-                    myWebView.loadUrl("javascript:document.write(\"" + e.getMessage() + "\");");
+                    Toast.makeText(MainActivity.this, e.getMessage(), Toast.LENGTH_SHORT).show();
                 }
             }
         });
