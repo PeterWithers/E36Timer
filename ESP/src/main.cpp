@@ -18,6 +18,7 @@
 #include <ESP8266WiFi.h>
 #include <DNSServer.h>
 #include <ESP8266WebServer.h>
+#include <ESP8266HTTPUpdateServer.h>
 #include <Sodaq_BMP085.h>
 #include <Wire.h>
 WiFiUDP Udp;
@@ -28,6 +29,7 @@ IPAddress timerIP(192, 168, 1, 1);
 IPAddress remoteIP(192, 168, 1, 2);
 DNSServer dnsServer;
 ESP8266WebServer webServer(80);
+ESP8266HTTPUpdateServer httpUpdater;
 
 Sodaq_BMP085 pressureSensor;
 double baselinePressure;
@@ -816,6 +818,7 @@ void loop() {
         dnsServer.processNextRequest();
         webServer.handleClient();
     }
+    yield();
 }
 
 void setupRegisters() {
@@ -973,6 +976,7 @@ void defaultPage() {
             "<a href='dtIncrease'>dtIncrease</a><br/><br/>"
             "<a href='toggleSensors'>toggleSensors</a><br/><br/>"
             "<a href='saveChanges'>saveChanges</a><br/><br/>"
+            "<a href='requestFirmwareUpdate'>FirmwareUpdate</a><br/><br/>"
             "<a href='graph.json'>Graph Data</a><br/><br/>"
             "<a href='graph.svg'>Graph SVG</a><br/><br/>"
             "<a href='graph.svg?download'>Download SVG</a><br/><br/>"
@@ -1011,6 +1015,20 @@ void saveChanges() {
     saveSettings();
     machineState = startWipe1;
     defaultPage();
+}
+
+void requestFirmwareUpdate() {
+    String responseString = "<!DOCTYPE html><html><head><title>E36</title></head><body><h1>Firmware Update</h1><br/><br/>";
+    int responseCode;
+    if (ButtonIsDown) {
+        httpUpdater.setup(&webServer);
+        responseString += "Update service ready";
+        responseCode = 200;
+    } else {
+        responseString += "Please hold down the button to begin update";
+        responseCode = 403;
+    }
+    webServer.send(responseCode, "text/html", responseString + "</body></html>");
 }
 
 void getTriggerDT() {
@@ -1076,6 +1094,7 @@ void setup() {
         webServer.on("/dtIncrease", dtIncrease);
         webServer.on("/saveChanges", saveChanges);
         webServer.on("/toggleSensors", toggleSensors);
+        webServer.on("/requestFirmwareUpdate", requestFirmwareUpdate);
         webServer.onNotFound(defaultPage);
         webServer.begin();
     } else {
