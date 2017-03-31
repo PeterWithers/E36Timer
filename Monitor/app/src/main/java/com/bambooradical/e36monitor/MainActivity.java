@@ -104,33 +104,35 @@ public class MainActivity extends AppCompatActivity {
             final JSONArray dtHistory = (JSONArray) jsonObject.get("dtHistory");
             final JSONArray altitudeHistory = (JSONArray) jsonObject.get("altitudeHistory");
             final JSONArray temperatureHistory = (JSONArray) jsonObject.get("temperatureHistory");
-            double rmsValue0 = 0;
-            double rmsValue1 = 0;
-            double rmsValue2 = 0;
-            double rmsValue3 = 0;
-            double rmsValue4 = 0;
-            double rmsValue5 = 0;
+            double value0 = 0;
+            double value1 = 0;
+            double value2 = 0;
+            double value3 = 0;
+            double value4 = 0;
+            double value5 = 0;
             final JSONArray altitudeHistoryRms = new JSONArray();
+            final JSONArray altitudeHistorySmoothed = new JSONArray();
             try {
                 for (int index = 0; index < altitudeHistory.length(); index++) {
                     final Double value = altitudeHistory.getDouble(index);
-                    rmsValue5 = rmsValue4;
-                    rmsValue4 = rmsValue3;
-                    rmsValue3 = rmsValue2;
-                    rmsValue2 = rmsValue1;
-                    rmsValue1 = rmsValue0;
-                    rmsValue0 = value * value;
-//                     altitudeHistoryRms.put(Math.sqrt((rmsValue5 + rmsValue4 + rmsValue3 + rmsValue2 + rmsValue1 + rmsValue0) / 6));
-                    altitudeHistoryRms.put(Math.sqrt((rmsValue5 * 0.1 + rmsValue4 * 0.1 + rmsValue3 * 0.1 + rmsValue2 * 0.5 + rmsValue1 * 0.1 + rmsValue0 * 0.1)));
-//                    altitudeHistoryRms.put(value);
+                    value5 = value4;
+                    value4 = value3;
+                    value3 = value2;
+                    value2 = value1;
+                    value1 = value0;
+                    value0 = value;
+                    altitudeHistoryRms.put(Math.sqrt((value5 * value5 + value4 * value4 + value3 * value3 + value2 * value2 + value1 * value1 + value0 * value0) / 6));
+                    altitudeHistorySmoothed.put((value5 * 0.1 + value4 * 0.1 + value3 * 0.2 + value2 * 0.3 + value1 * 0.2 + value0 * 0.1));
                 }
             } catch (JSONException e) {
 //                Toast.makeText(MainActivity.this, e.getMessage(), Toast.LENGTH_SHORT).show();
             }
-            myWebView.loadUrl("javascript:flightChart.data.datasets[0].data = " + altitudeHistoryRms.toString() + ";");
-            myWebView.loadUrl("javascript:flightChart.data.datasets[1].data = " + temperatureHistory.toString() + ";");
-            myWebView.loadUrl("javascript:flightChart.data.datasets[2].data = " + escHistory.toString() + ";");
-            myWebView.loadUrl("javascript:flightChart.data.datasets[3].data = " + dtHistory.toString() + ";");
+            myWebView.loadUrl("javascript:flightChart.data.datasets[0].data = " + altitudeHistory.toString() + ";");
+            myWebView.loadUrl("javascript:flightChart.data.datasets[1].data = " + altitudeHistoryRms.toString() + ";");
+            myWebView.loadUrl("javascript:flightChart.data.datasets[2].data = " + altitudeHistorySmoothed.toString() + ";");
+            myWebView.loadUrl("javascript:flightChart.data.datasets[3].data = " + temperatureHistory.toString() + ";");
+            myWebView.loadUrl("javascript:flightChart.data.datasets[4].data = " + escHistory.toString() + ";");
+            myWebView.loadUrl("javascript:flightChart.data.datasets[5].data = " + dtHistory.toString() + ";");
             myWebView.loadUrl("javascript:flightChart.update();");
             synchronized (jsonDataLock) {
                 sharedJsonData = jsonDataString;
