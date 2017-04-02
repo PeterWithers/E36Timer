@@ -76,14 +76,14 @@ public class MainActivity extends AppCompatActivity {
     private DrawerLayout appDrawerLayout;
     WebView myWebView;
     volatile String sharedJsonData = "";
-//    volatile int currentJsonGraphIndex = 0;
+    volatile int currentJsonGraphIndex = 0;
     static final Object jsonDataLock = new Object();
-//    final JSONArray altitudeHistoryRms = new JSONArray();
-//    final JSONArray altitudeHistorySmoothed = new JSONArray();
-//    final JSONArray escHistoryFull = new JSONArray();
-//    final JSONArray dtHistoryFull = new JSONArray();
-//    final JSONArray altitudeHistoryFull = new JSONArray();
-//    final JSONArray temperatureHistoryFull = new JSONArray();
+    final JSONArray altitudeHistoryRms = new JSONArray();
+    final JSONArray altitudeHistorySmoothed = new JSONArray();
+    final JSONArray escHistoryFull = new JSONArray();
+    final JSONArray dtHistoryFull = new JSONArray();
+    final JSONArray altitudeHistoryFull = new JSONArray();
+    final JSONArray temperatureHistoryFull = new JSONArray();
     RequestQueue requestQueue;
     Handler connectionCheckHandler = new Handler();
     Runnable connectionCheckRunnable = new Runnable() {
@@ -130,13 +130,10 @@ public class MainActivity extends AppCompatActivity {
             double value3 = 0;
             double value4 = 0;
             double value5 = 0;
-            final JSONArray altitudeHistoryRms = new JSONArray();
-            final JSONArray altitudeHistorySmoothed = new JSONArray();
-            //int dataLength = 0;
-//            int startIndex = (int) jsonObject.get("startIndex");
+            int startIndex = (int) jsonObject.get("startIndex");
             int totalLength = (int) jsonObject.get("historyIndex");
             try {
-                for (int index = 0; index < altitudeHistory.length(); index++) {
+                for (int index = 0; index < altitudeHistory.length() && startIndex + index < totalLength; index++) {
                     final Double value = altitudeHistory.getDouble(index);
                     //currentJsonGraphIndex++;
                     //dataLength++;
@@ -146,25 +143,26 @@ public class MainActivity extends AppCompatActivity {
                     value2 = value1;
                     value1 = value0;
                     value0 = value;
-                    altitudeHistoryRms.put(Math.sqrt((value5 * value5 + value4 * value4 + value3 * value3 + value2 * value2 + value1 * value1 + value0 * value0) / 6));
-                    altitudeHistorySmoothed.put((value5 * 0.1 + value4 * 0.1 + value3 * 0.2 + value2 * 0.3 + value1 * 0.2 + value0 * 0.1));
-//                    escHistoryFull.put(startIndex + index, escHistory.getInt(index));
-//                    dtHistoryFull.put(startIndex + index, dtHistory.getInt(index));
-//                    altitudeHistoryFull.put(startIndex + index, altitudeHistory.getDouble(index));
-//                    temperatureHistoryFull.put(startIndex + index, temperatureHistory.getDouble(index));
+                    altitudeHistoryRms.put(startIndex + index, Math.sqrt((value5 * value5 + value4 * value4 + value3 * value3 + value2 * value2 + value1 * value1 + value0 * value0) / 6));
+                    altitudeHistorySmoothed.put(startIndex + index, (value5 * 0.1 + value4 * 0.1 + value3 * 0.2 + value2 * 0.3 + value1 * 0.2 + value0 * 0.1));
+                    escHistoryFull.put(startIndex + index, escHistory.getInt(index));
+                    dtHistoryFull.put(startIndex + index, dtHistory.getInt(index));
+                    altitudeHistoryFull.put(startIndex + index, altitudeHistory.getDouble(index));
+                    temperatureHistoryFull.put(startIndex + index, temperatureHistory.getDouble(index));
                 }
             } catch (JSONException e) {
 //                Toast.makeText(MainActivity.this, e.getMessage(), Toast.LENGTH_SHORT).show();
             }
             //.splice(" + startIndex + "," + dataLength + "," + 
-//            currentJsonGraphIndex = altitudeHistoryFull.length();
+            currentJsonGraphIndex = altitudeHistoryFull.length();
+            //currentJsonGraphIndex = (currentJsonGraphIndex > totalLength) ? totalLength : currentJsonGraphIndex;
             myWebView.loadUrl("javascript:flightChart.data.labels = new Array(" + totalLength + ");");
-            myWebView.loadUrl("javascript:flightChart.data.datasets[0].data = " + altitudeHistory.toString() + ";");
+            myWebView.loadUrl("javascript:flightChart.data.datasets[0].data = " + altitudeHistoryFull.toString() + ";");
             myWebView.loadUrl("javascript:flightChart.data.datasets[1].data = " + altitudeHistoryRms.toString() + ";");
             myWebView.loadUrl("javascript:flightChart.data.datasets[2].data = " + altitudeHistorySmoothed.toString() + ";");
-            myWebView.loadUrl("javascript:flightChart.data.datasets[3].data = " + temperatureHistory.toString() + ";");
-            myWebView.loadUrl("javascript:flightChart.data.datasets[4].data = " + escHistory.toString() + ";");
-            myWebView.loadUrl("javascript:flightChart.data.datasets[5].data = " + dtHistory.toString() + ";");
+            myWebView.loadUrl("javascript:flightChart.data.datasets[3].data = " + temperatureHistoryFull.toString() + ";");
+            myWebView.loadUrl("javascript:flightChart.data.datasets[4].data = " + escHistoryFull.toString() + ";");
+            myWebView.loadUrl("javascript:flightChart.data.datasets[5].data = " + dtHistoryFull.toString() + ";");
             myWebView.loadUrl("javascript:flightChart.update();");
             synchronized (jsonDataLock) {
                 sharedJsonData = jsonDataString;
@@ -204,7 +202,7 @@ public class MainActivity extends AppCompatActivity {
 //                  saveFlightData.hide();
 //            }
 //        } else {
-        StringRequest telemetryRequest = new StringRequest(Request.Method.GET, "http://192.168.1.1/graph.json", //?start=" + currentJsonGraphIndex, //"file:///android_asset/html/telemetry.json",
+        StringRequest telemetryRequest = new StringRequest(Request.Method.GET, "http://192.168.1.1/graph.json?start=" + currentJsonGraphIndex, //"file:///android_asset/html/telemetry.json",
                 new Response.Listener<String>() {
             @Override
             public void onResponse(String response) {
