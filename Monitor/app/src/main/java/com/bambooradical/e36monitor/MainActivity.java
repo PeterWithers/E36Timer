@@ -78,12 +78,12 @@ public class MainActivity extends AppCompatActivity {
     volatile String sharedJsonData = "";
     volatile int currentJsonGraphIndex = 0;
     static final Object jsonDataLock = new Object();
-    final JSONArray altitudeHistoryRms = new JSONArray();
-    final JSONArray altitudeHistorySmoothed = new JSONArray();
-    final JSONArray escHistoryFull = new JSONArray();
-    final JSONArray dtHistoryFull = new JSONArray();
-    final JSONArray altitudeHistoryFull = new JSONArray();
-    final JSONArray temperatureHistoryFull = new JSONArray();
+    JSONArray altitudeHistoryRms = new JSONArray();
+    JSONArray altitudeHistorySmoothed = new JSONArray();
+    JSONArray escHistoryFull = new JSONArray();
+    JSONArray dtHistoryFull = new JSONArray();
+    JSONArray altitudeHistoryFull = new JSONArray();
+    JSONArray temperatureHistoryFull = new JSONArray();
     RequestQueue requestQueue;
     Handler connectionCheckHandler = new Handler();
     Runnable connectionCheckRunnable = new Runnable() {
@@ -132,6 +132,17 @@ public class MainActivity extends AppCompatActivity {
             double value5 = 0;
             int startIndex = (int) jsonObject.get("startIndex");
             int totalLength = (int) jsonObject.get("historyIndex");
+            if (totalLength < currentJsonGraphIndex) {
+                // if the length is wrong then we have stale data and should reset the arrays
+                currentJsonGraphIndex = 0;
+                altitudeHistoryRms = new JSONArray();
+                altitudeHistorySmoothed = new JSONArray();
+                escHistoryFull = new JSONArray();
+                dtHistoryFull = new JSONArray();
+                altitudeHistoryFull = new JSONArray();
+                temperatureHistoryFull = new JSONArray();
+                return;
+            }
             try {
                 for (int index = 0; index < altitudeHistory.length() && startIndex + index < totalLength; index++) {
                     final Double value = altitudeHistory.getDouble(index);
