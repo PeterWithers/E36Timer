@@ -176,7 +176,11 @@ public class MainActivity extends AppCompatActivity {
             myWebView.loadUrl("javascript:flightChart.data.datasets[5].data = " + dtHistoryFull.toString() + ";");
             myWebView.loadUrl("javascript:flightChart.update();");
             synchronized (jsonDataLock) {
-                sharedJsonData = jsonDataString;
+                // todo: add the remaining entries and test the results of saving and loading saved data
+                jsonObject.put("altitudeHistory", altitudeHistoryFull);
+                jsonObject.put("escHistory", escHistoryFull);
+                jsonObject.put("startIndex", 0);
+                sharedJsonData = jsonObject.toString();
             }
         } catch (JSONException e) {
             Toast.makeText(MainActivity.this, e.getMessage(), Toast.LENGTH_SHORT).show();
