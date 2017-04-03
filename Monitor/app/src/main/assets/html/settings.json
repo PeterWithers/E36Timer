@@ -1,0 +1,57 @@
+{
+    "settings": [{
+            "index": 5,
+            "value": 120,
+            "values": [0, 5, 30, 60, 90, 120, 180, 240, 300],
+            "description": "Dethermal Seconds",
+            "name": "dethermalSeconds",
+            "links": [{
+                    "rel": "+",
+                    "href": "dtIncrease"
+                }, {
+                    "rel": "-",
+                    "href": "dtDecrease"
+                }]
+        }, {
+            "index": 4,
+            "value": 10,
+            "description": "Motor Seconds",
+            "name": "motorSeconds",
+            "values": [2, 4, 5, 7, 10, 13, 15],
+            "links": [{
+                    "rel": "+",
+                    "href": "motorIncrease"
+                }, {
+                    "rel": "-",
+                    "href": "motorDecrease"
+                }]
+        }, {
+            "integer": 30,
+            "description": "Power Down Servo Seconds",
+            "name": "powerDownServoMs",
+            "links": [{
+                    "rel": "self",
+                    "href": "powerDownServoMs"
+                }]
+        }, {
+            "integer": 300000,
+            "description": "Power Down ESC Seconds",
+            "name": "powerDownEscSeconds",
+            "links": [{
+                    "rel": "self",
+                    "href": "powerDownEscSeconds"
+                }]
+        }, {
+            "boolean": true,
+            "description": "Pressure Sensor",
+            "name": "pressureSensor",
+            "links": [{
+                    "rel": "self",
+                    "href": "hasPressureSensor"
+                }]
+        }],
+    "links": [{
+            "rel": "self",
+            "href": "settings"
+        }]
+}   
