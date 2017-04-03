@@ -21,6 +21,10 @@
 #include <ESP8266HTTPUpdateServer.h>
 #include <Sodaq_BMP085.h>
 #include <Wire.h>
+#include <Ticker.h>
+
+Ticker pwmTweenTimer;
+
 WiFiUDP Udp;
 unsigned int localUdpPort = 2222;
 
@@ -562,6 +566,9 @@ void updateHistory() {
     }
 }
 
+void tweenPwmValues() {
+}
+
 void loop() {
     int servoPosition = dtServo.read();
     int escPosition = escServo.read();
@@ -837,6 +844,77 @@ void getTelemetry() {
     webServer.send(200, "text/html", getTelemetryString());
 }
 
+void getSettingsJson() {
+    String returnSettinsJson = "{";
+    returnSettinsJson += "\"settings\": [{\
+    \"index\": ";
+    returnSettinsJson += dethermalSecondsIndex + ",\
+            \"value\": ";
+    returnSettinsJson += dethermalSeconds[dethermalSecondsIndex] + ",\
+            \"values\": [0, 5, 30, 60, 90, 120, 180, 240, 300],\
+            \"description\": \"Dethermal Seconds\",\
+            \"name\": \"dethermalSeconds\",\
+            \"links\": [{\
+                    \"rel\": \"+\",\
+                    \"href\": \"dtIncrease\"\
+                }, {\
+                    \"rel\": \"-\",\
+                    \"href\": \"dtDecrease\"\
+                }]\
+        }, {\
+            \"index\": ";
+    returnSettinsJson += motorSecondsIndex + ",\
+            \"value\": ";
+    returnSettinsJson += motorSeconds[motorSecondsIndex] + ",\
+            \"description\": \"Motor Seconds\",\
+            \"name\": \"motorSeconds\",\
+            \"values\": [2, 4, 5, 7, 10, 13, 15],\
+            \"links\": [{\
+                    \"rel\": \"+\",\
+                    \"href\": \"motorIncrease\"\
+                }, {\
+                    \"rel\": \"-\",\
+                    \"href\": \"motorDecrease\"\
+                }]\
+        }, {\
+            \"integer\": 30,\
+            \"description\": \"Power Down Servo Seconds\",\
+            \"name\": \"powerDownServoMs\",\
+            \"links\": [{\
+                    \"rel\": \"self\",\
+                    \"href\": \"powerDownServoMs\"\
+                }]\
+        }, {\
+            \"integer\": 300000,\
+            \"description\": \"Power Down ESC Seconds\",\
+            \"name\": \"powerDownEscSeconds\",\
+            \"links\": [{\
+                    \"rel\": \"self\",\
+                    \"href\": \"powerDownEscSeconds\"\
+                }]\
+        }, {\
+            \"boolean\": true,\
+            \"description\": \"Pressure Sensor\",\
+            \"name\": \"pressureSensor\",\
+            \"links\": [{\
+                    \"rel\": \"self\",\
+                    \"href\": \"toggleSensors\"\
+                }]\
+        }],\
+    \"links\": [{\
+            \"rel\": \"self\",\
+            \"href\": \"settings\"\
+        }]\
+}   ";
+    webServer.send(200, "text/html", returnSettinsJson);
+}
+
+//        webServer.on("/dethermalSeconds", HTTP_PUT, putDethermalSeconds);
+//        webServer.on("/motorSeconds", HTTP_PUT, putMotorSeconds);
+//        webServer.on("/powerDownServoMs", HTTP_PUT, putPowerDownServoMs);
+//        webServer.on("/powerDownEscSeconds", HTTP_PUT, putPowerDownEscSeconds);
+//        webServer.on("/hasPressureSensor", HTTP_PUT, putHasPressureSensor);
+
 void getGraphData() {
     int maxRecords = (webServer.hasArg("start")) ? 100 : historyLength / 2;
     int startIndex = (webServer.hasArg("start")) ? webServer.arg("start").toInt() : 0;
@@ -1074,6 +1152,7 @@ void setup() {
             powerUpDt();
             sendTelemetry();
         }
+        pwmTweenTimer.attach_ms(100, tweenPwmValues);
         WiFi.mode(WIFI_AP);
         WiFi.softAPConfig(timerIP, timerIP, IPAddress(255, 255, 255, 0));
         WiFi.softAP("E36 Timer");
@@ -1095,6 +1174,12 @@ void setup() {
         webServer.on("/saveChanges", saveChanges);
         webServer.on("/toggleSensors", toggleSensors);
         webServer.on("/requestFirmwareUpdate", requestFirmwareUpdate);
+        webServer.on("/settings", HTTP_GET, getSettingsJson);
+        //webServer.on("/dethermalSeconds", HTTP_PUT, putDethermalSeconds);
+        //webServer.on("/motorSeconds", HTTP_PUT, putMotorSeconds);
+        //webServer.on("/powerDownServoMs", HTTP_PUT, putPowerDownServoMs);
+        //webServer.on("/powerDownEscSeconds", HTTP_PUT, putPowerDownEscSeconds);
+        //webServer.on("/hasPressureSensor", HTTP_PUT, putHasPressureSensor);
         webServer.onNotFound(defaultPage);
         webServer.begin();
     } else {
