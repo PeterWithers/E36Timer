@@ -55,8 +55,8 @@ int maxSvgValue = 0;
 // end temporary defines
 
 #define IndicatorLed     2
-#define ServoPWM         1 // shared with TX
-#define EscPWM           3 // shared with RX
+#define ServoPWM         3 // shared with TX
+#define EscPWM           5
 #define ButtonPin        0
 #define SdaPin           12
 #define SclPin           14
@@ -848,9 +848,11 @@ void getSettingsJson() {
     String returnSettinsJson = "{";
     returnSettinsJson += "\"settings\": [{\
     \"index\": ";
-    returnSettinsJson += dethermalSecondsIndex + ",\
+    returnSettinsJson += dethermalSecondsIndex;
+    returnSettinsJson += ",\
             \"value\": ";
-    returnSettinsJson += dethermalSeconds[dethermalSecondsIndex] + ",\
+    returnSettinsJson += dethermalSeconds[dethermalSecondsIndex];
+    returnSettinsJson += ",\
             \"values\": [0, 5, 30, 60, 90, 120, 180, 240, 300],\
             \"description\": \"Dethermal Seconds\",\
             \"name\": \"dethermalSeconds\",\
@@ -863,9 +865,11 @@ void getSettingsJson() {
                 }]\
         }, {\
             \"index\": ";
-    returnSettinsJson += motorSecondsIndex + ",\
+    returnSettinsJson += motorSecondsIndex;
+    returnSettinsJson += ",\
             \"value\": ";
-    returnSettinsJson += motorSeconds[motorSecondsIndex] + ",\
+    returnSettinsJson += motorSeconds[motorSecondsIndex];
+    returnSettinsJson += ",\
             \"description\": \"Motor Seconds\",\
             \"name\": \"motorSeconds\",\
             \"values\": [2, 4, 5, 7, 10, 13, 15],\
@@ -1054,8 +1058,9 @@ void defaultPage() {
             "<a href='dtIncrease'>dtIncrease</a><br/><br/>"
             "<a href='toggleSensors'>toggleSensors</a><br/><br/>"
             "<a href='saveChanges'>saveChanges</a><br/><br/>"
+            "<a href='settings'>Settings JSON</a><br/><br/>"
             "<a href='requestFirmwareUpdate'>FirmwareUpdate</a><br/><br/>"
-            "<a href='graph.json'>Graph Data</a><br/><br/>"
+            "<a href='graph.json'>Graph JSON</a><br/><br/>"
             "<a href='graph.svg'>Graph SVG</a><br/><br/>"
             "<a href='graph.svg?download'>Download SVG</a><br/><br/>"
             "</body></html>");
