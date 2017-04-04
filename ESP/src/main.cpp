@@ -45,6 +45,7 @@ float temperatureHistory[1024];
 float altitudeHistory[1024];
 int escHistory[1024];
 int dtHistory[1024];
+int rssiHistory[1024];
 int maxSvgValue = 0;
 
 //#define TRIGGER_PIN  3
@@ -566,6 +567,11 @@ void updateHistory() {
     }
 }
 
+void onProbeRequestPrint(const WiFiEventSoftAPModeProbeRequestReceived& evt) {
+    int currentIndex = (millis() / 1000) % historyLength;
+    rssiHistory[currentIndex] = evt.rssi;
+}
+
 void tweenPwmValues() {
 }
 
@@ -608,6 +614,12 @@ void loop() {
             if (servoPosition <= MinPwm) {
                 machineState = waitingButtonRelease2;
                 lastStateChangeMs = millis();
+//                memset(temperatureHistory,0,sizeof(temperatureHistory));
+//                memset(altitudeHistory,0,sizeof(altitudeHistory));
+//                memset(escHistory,0,sizeof(escHistory));
+//                memset(dtHistory,0,sizeof(dtHistory));
+//                memset(rssiHistory,0,sizeof(rssiHistory));
+//                TODO: there needs to be a way to zero the historyIndex, eg store the history start mss
             }
             sendTelemetry();
             break;
@@ -805,14 +817,21 @@ void loop() {
             fastFlash();
             break;
         case dtRemote:
-            if (millis() - buttonLastChangeMs > buttonDebounceMs) {
-                if (ButtonIsDown) {
-                    Udp.beginPacket(timerIP, localUdpPort);
-                    Udp.write("ButtonDown");
-                    Udp.endPacket();
-                }
-                buttonLastChangeMs = millis();
+            //if (millis() - buttonLastChangeMs > buttonDebounceMs) {
+            if (ButtonIsDown) {
+                Udp.beginPacket(timerIP, localUdpPort);
+                Udp.write("*");
+                Udp.endPacket();
             }
+            //    buttonLastChangeMs = millis();
+            //}
+            //            int currentIndex = (millis() / 1000) % historyLength;
+            //            if (currentIndex != historyIndex) {
+            //                Udp.beginPacket(timerIP, localUdpPort);
+            //                Udp.write(WiFi.RSSI());
+            //                Udp.endPacket();
+            //                historyIndex = currentIndex;
+            //            }
             int packetSize = Udp.parsePacket();
             if (packetSize) {
                 Serial.print("Found packet");
@@ -950,6 +969,12 @@ void getGraphData() {
     graphData += "escHistory: [";
     for (int currentIndex = startIndex; currentIndex < endIndex; currentIndex++) {
         graphData += (escHistory[currentIndex] / 10);
+        graphData += ", ";
+    }
+    graphData += "];";
+    graphData += "rssiHistory: [";
+    for (int currentIndex = startIndex; currentIndex < endIndex; currentIndex++) {
+        graphData += (rssiHistory[currentIndex]);
         graphData += ", ";
     }
     graphData += "]}";
