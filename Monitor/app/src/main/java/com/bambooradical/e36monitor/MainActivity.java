@@ -220,13 +220,13 @@ public class MainActivity extends AppCompatActivity {
             //.splice(" + startIndex + "," + dataLength + "," + 
             currentJsonGraphIndex = altitudeHistoryFull.length();
             //currentJsonGraphIndex = (currentJsonGraphIndex > totalLength) ? totalLength : currentJsonGraphIndex;
-            myWebView.loadUrl("javascript:flightChart.data.labels = new Array(" + totalLength + ");");
             myWebView.loadUrl("javascript:flightChart.data.datasets[0].data = " + altitudeHistoryFull.toString() + ";");
             myWebView.loadUrl("javascript:flightChart.data.datasets[1].data = " + altitudeHistoryRms.toString() + ";");
             myWebView.loadUrl("javascript:flightChart.data.datasets[2].data = " + altitudeHistorySmoothed.toString() + ";");
             myWebView.loadUrl("javascript:flightChart.data.datasets[3].data = " + temperatureHistoryFull.toString() + ";");
             myWebView.loadUrl("javascript:flightChart.data.datasets[4].data = " + escHistoryFull.toString() + ";");
             myWebView.loadUrl("javascript:flightChart.data.datasets[5].data = " + dtHistoryFull.toString() + ";");
+            myWebView.loadUrl("javascript:flightChart.data.labels = new Array(" + totalLength + ");");
             myWebView.loadUrl("javascript:flightChart.update();");
             synchronized (jsonDataLock) {
                 // todo: add the remaining entries and test the results of saving and loading saved data
@@ -343,7 +343,7 @@ public class MainActivity extends AppCompatActivity {
                     final File sdCard = Environment.getExternalStorageDirectory();
                     final File flightLogsDirectory = new File(sdCard.getAbsolutePath() + "/FlightLogs");
                     flightLogsDirectory.mkdirs();
-                    final SimpleDateFormat simpleDateFormat = new SimpleDateFormat("dd-MMM-yyyy hh:mm");
+                    final SimpleDateFormat simpleDateFormat = new SimpleDateFormat("dd-MMM-yyyy HH:mm");
                     final File file = new File(flightLogsDirectory, simpleDateFormat.format(new Date()) + ".json");
                     final FileOutputStream fileOutputStream = new FileOutputStream(file);
 //                    openFileOutput(simpleDateFormat.format(new Date()), Context.MODE_PRIVATE);
