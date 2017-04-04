@@ -15,8 +15,10 @@ import android.net.NetworkRequest;
 import android.net.wifi.WifiConfiguration;
 import android.net.wifi.WifiInfo;
 import android.net.wifi.WifiManager;
+import android.os.AsyncTask;
 import android.os.Build;
 import android.os.Bundle;
+import android.os.Environment;
 import android.os.Handler;
 import android.support.design.widget.FloatingActionButton;
 import android.support.design.widget.Snackbar;
@@ -39,11 +41,13 @@ import com.android.volley.VolleyError;
 import com.android.volley.toolbox.StringRequest;
 import com.android.volley.toolbox.Volley;
 import java.io.BufferedReader;
+import java.io.File;
 import java.io.FileInputStream;
 import java.io.FileOutputStream;
 import java.io.IOException;
 import java.io.InputStream;
 import java.io.InputStreamReader;
+import java.net.MalformedURLException;
 import java.net.URL;
 import java.net.URLConnection;
 import java.text.SimpleDateFormat;
@@ -78,40 +82,89 @@ public class MainActivity extends AppCompatActivity {
     volatile String sharedJsonData = "";
     volatile int currentJsonGraphIndex = 0;
     static final Object jsonDataLock = new Object();
-    JSONArray altitudeHistoryRms = new JSONArray();
-    JSONArray altitudeHistorySmoothed = new JSONArray();
-    JSONArray escHistoryFull = new JSONArray();
-    JSONArray dtHistoryFull = new JSONArray();
-    JSONArray altitudeHistoryFull = new JSONArray();
-    JSONArray temperatureHistoryFull = new JSONArray();
-    RequestQueue requestQueue;
-    Handler connectionCheckHandler = new Handler();
-    Runnable connectionCheckRunnable = new Runnable() {
+    private JSONArray altitudeHistoryRms = new JSONArray();
+    private JSONArray altitudeHistorySmoothed = new JSONArray();
+    private JSONArray escHistoryFull = new JSONArray();
+    private JSONArray dtHistoryFull = new JSONArray();
+    private JSONArray altitudeHistoryFull = new JSONArray();
+    private JSONArray temperatureHistoryFull = new JSONArray();
+    private RequestQueue requestQueue;
+    private Handler connectionCheckHandler = new Handler();
+    private AsyncTask connectionAsyncTask = null;
 
+    private AsyncTask getAsyncTask() {
+        return new AsyncTask<URL, Integer, String>() {
+            protected String doInBackground(URL... url) {
+                if (timerNetwork == null) {
+//                WifiManager wifiManager = (WifiManager) getApplicationContext().getSystemService(Context.WIFI_SERVICE);
+//                WifiInfo wifiInfo = wifiManager.getConnectionInfo();
+//                if (wifiInfo.getSSID() == null || !wifiInfo.getSSID().equals("\"E36 Timer\"")) {
+                    final ConnectivityManager connectivityManager = (ConnectivityManager) getApplicationContext().getSystemService(Context.CONNECTIVITY_SERVICE);
+                    for (Network network : connectivityManager.getAllNetworks()) {
+                        NetworkInfo networkInfo = connectivityManager.getNetworkInfo(network);
+//                        System.out.println("network:" + network.toString());
+//                        System.out.println("networkinfo:" + networkInfo.getTypeName());
+//                        System.out.println("networkinfo:" + networkInfo.isConnected());
+//                        System.out.println("networkinfo:" + networkInfo.getTypeName());
+                        if (networkInfo.getType() == ConnectivityManager.TYPE_WIFI
+                                && networkInfo.isConnected()
+                                && "\"E36 Timer\"".equals(networkInfo.getExtraInfo())) {
+                            timerNetwork = network;
+                        }
+                    }
+//                }
+                }
+                if (timerNetwork != null) {
+                    try {
+                        InputStreamReader inputStreamReader;
+                        URLConnection urlConnection = timerNetwork.openConnection(url[0]);
+                        inputStreamReader = new InputStreamReader(urlConnection.getInputStream());
+
+                        BufferedReader bufferedReader = new BufferedReader(inputStreamReader);
+                        StringBuilder stringBuilder = new StringBuilder();
+                        String line;
+                        while ((line = bufferedReader.readLine()) != null) {
+                            stringBuilder.append(line);
+                        }
+                        return stringBuilder.toString();
+                    } catch (IOException e) {
+                        timerNetwork = null;
+                    }
+                }
+                return null;
+            }
+
+            protected void onProgressUpdate(Integer... progress) {
+            }
+
+            protected void onPostExecute(String result) {
+                if (result == null || result.isEmpty()) {
+                    Toast.makeText(MainActivity.this, (result == null) ? "network result null" : "network result empty", Toast.LENGTH_SHORT).show();
+                    saveFlightData.hide();
+                    flightGraphsButton.hide();
+                } else if (monitorState == MonitorState.liveGraph) {
+                    updateGraphWithJson(result);
+                    saveFlightData.show();
+                } else {
+                    saveFlightData.hide();
+                }
+            }
+        };
+    }
+    Runnable connectionCheckRunnable = new Runnable() {
         @Override
         public void run() {
-            WifiManager wifiManager = (WifiManager) getApplicationContext().getSystemService(Context.WIFI_SERVICE);
-            WifiInfo wifiInfo = wifiManager.getConnectionInfo();
-            if (wifiInfo.getSSID() == null || !wifiInfo.getSSID().equals("\"E36 Timer\"")) {
-//                if (connectedToTimer) {
-                //myWebView.loadUrl("file:///android_asset/html/graphs.html");
-//                    connectedToTimer = false;
-                saveFlightData.hide();
-                flightGraphsButton.hide();
-//                }
+            if (monitorState == MonitorState.liveGraph) {
+                try {
+                    if (connectionAsyncTask == null || connectionAsyncTask.getStatus() != AsyncTask.Status.RUNNING) {
+                        connectionAsyncTask = getAsyncTask();
+                        connectionAsyncTask.execute(new URL[]{new URL("http://192.168.1.1/graph.json?start=" + currentJsonGraphIndex)});
+                    }
+                } catch (MalformedURLException e) {
+                    Toast.makeText(MainActivity.this, e.getMessage(), Toast.LENGTH_SHORT).show();
+                }
             } else {
-//                    case graph:
-                makeTelemetryRequest();
-//                        break;
-//                    case settings:
-//                        myWebView.loadUrl("http://192.168.1.1/telemetry");
-//                        saveFlightData.hide();
-//                        break;
-//                }
-//                if (!connectedToTimer) {
-//                    connectedToTimer = true;
-//                }
-                //flightGraphsButton.show();
+                saveFlightData.hide();
             }
             connectionCheckHandler.postDelayed(this, 2000);
         }
@@ -178,97 +231,14 @@ public class MainActivity extends AppCompatActivity {
             synchronized (jsonDataLock) {
                 // todo: add the remaining entries and test the results of saving and loading saved data
                 jsonObject.put("altitudeHistory", altitudeHistoryFull);
+                jsonObject.put("temperatureHistory", temperatureHistoryFull);
                 jsonObject.put("escHistory", escHistoryFull);
+                jsonObject.put("dtHistory", dtHistoryFull);
                 jsonObject.put("startIndex", 0);
                 sharedJsonData = jsonObject.toString();
             }
         } catch (JSONException e) {
             Toast.makeText(MainActivity.this, e.getMessage(), Toast.LENGTH_SHORT).show();
-        }
-    }
-
-//    @TargetApi(21)
-    private void makeTelemetryRequest() {
-//        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
-//            if (timerNetwork != null) {
-//                try {
-//                    InputStreamReader inputStreamReader;
-//                    URLConnection urlConnection = timerNetwork.openConnection(new URL("http://192.168.1.1/graph.json"));
-//                    inputStreamReader = new InputStreamReader(urlConnection.getInputStream());
-//
-//                    BufferedReader bufferedReader = new BufferedReader(inputStreamReader);
-//                    StringBuilder stringBuilder = new StringBuilder();
-//                    String line;
-//                    while ((line = bufferedReader.readLine()) != null) {
-//                        stringBuilder.append(line);
-//                    }
-//                    if (monitorState = MonitorState.liveGraph) {
-//                        updateGraphWithJson(stringBuilder.toString());
-//                        saveFlightData.show();
-//                    } else {
-//                      saveFlightData.hide();
-//                    }
-//                } catch (IOException e) {
-//                    Toast.makeText(MainActivity.this, e.getMessage(), Toast.LENGTH_LONG).show();
-//                    saveFlightData.hide();
-//                }
-//            } else {
-//            //    Toast.makeText(MainActivity.this, "timerNetwork is null", Toast.LENGTH_LONG).show();
-//                  saveFlightData.hide();
-//            }
-//        } else {
-        StringRequest telemetryRequest = new StringRequest(Request.Method.GET, "http://192.168.1.1/graph.json?start=" + currentJsonGraphIndex, //"file:///android_asset/html/telemetry.json",
-                new Response.Listener<String>() {
-            @Override
-            public void onResponse(String response) {
-                if (monitorState == MonitorState.liveGraph) {
-                    updateGraphWithJson(response);
-                    if (monitorState == MonitorState.liveGraph) {
-                        saveFlightData.show();
-                    } else {
-                        saveFlightData.hide();
-                    }
-                }
-            }
-        }, new Response.ErrorListener() {
-            @Override
-            public void onErrorResponse(VolleyError error) {
-                Toast.makeText(MainActivity.this, error.getMessage(), Toast.LENGTH_LONG).show();
-                saveFlightData.hide();
-            }
-        });
-        requestQueue.add(telemetryRequest);
-//        }
-    }
-
-//    @TargetApi(21)
-    private void bindToNetwork(boolean bind) {
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.LOLLIPOP) {
-            if (PackageManager.PERMISSION_GRANTED != ContextCompat.checkSelfPermission(getApplicationContext(), Manifest.permission.CHANGE_NETWORK_STATE)
-                    || PackageManager.PERMISSION_GRANTED != ContextCompat.checkSelfPermission(getApplicationContext(), Manifest.permission.WRITE_SETTINGS)) {
-                ActivityCompat.requestPermissions(this, new String[]{Manifest.permission.WRITE_SETTINGS, Manifest.permission.CHANGE_NETWORK_STATE}, 123);
-            } else {
-                final WifiManager wifiManager = (WifiManager) getApplicationContext().getSystemService(Context.WIFI_SERVICE);
-                final ConnectivityManager connectivityManager = (ConnectivityManager) getApplicationContext().getSystemService(Context.CONNECTIVITY_SERVICE);
-                NetworkRequest.Builder req = new NetworkRequest.Builder();
-                req.addCapability(NetworkCapabilities.NET_CAPABILITY_INTERNET);
-                req.addTransportType(NetworkCapabilities.TRANSPORT_WIFI);
-                connectivityManager.requestNetwork(req.build(), new ConnectivityManager.NetworkCallback() {
-                    @Override
-                    public void onAvailable(Network network) {
-                        //here you can use bindProcessToNetwork
-                        //String ssid = wifiManager.getConnectionInfo().getSSID();
-                        //if ("\"E36 Timer\"".equals(ssid)) {
-//                        connectivityManager.bindProcessToNetwork(network);
-                        timerNetwork = network;
-//                            connectedToTimer = true;
-                        //} else {
-                        //    timerNetwork = null;
-                        //    connectedToTimer = false;
-                        //}
-                    }
-                });
-            }
         }
     }
 
@@ -283,6 +253,7 @@ public class MainActivity extends AppCompatActivity {
         myWebView = (WebView) findViewById(R.id.webview);
         myWebView.getSettings().setJavaScriptEnabled(true);
         myWebView.loadUrl("file:///android_asset/html/graphs.html");
+        myWebView.getSettings().setBuiltInZoomControls(true);
         saveFlightData = (FloatingActionButton) findViewById(R.id.saveFlightData);
         flightGraphsButton = (FloatingActionButton) findViewById(R.id.flightGraphs);
         flightGraphsButton.hide();
@@ -304,7 +275,11 @@ public class MainActivity extends AppCompatActivity {
                     } else if ("demo data 3".equals(selectedValue)) {
                         inputStream = getAssets().open("html/telemetry_2.json");
                     } else {
-                        inputStream = openFileInput(appDrawListAdapter.getItem(position));
+//                        inputStream = openFileInput(appDrawListAdapter.getItem(position));
+                        final File sdCard = Environment.getExternalStorageDirectory();
+                        final File flightLogsDirectory = new File(sdCard.getAbsolutePath() + "/FlightLogs");
+                        final File file = new File(flightLogsDirectory, appDrawListAdapter.getItem(position));
+                        inputStream = new FileInputStream(file);
                     }
                     InputStreamReader inputStreamReader = new InputStreamReader(inputStream);
                     BufferedReader bufferedReader = new BufferedReader(inputStreamReader);
@@ -316,7 +291,7 @@ public class MainActivity extends AppCompatActivity {
                     updateGraphWithJson(stringBuilder.toString());
                     Toast.makeText(MainActivity.this, appDrawListAdapter.getItem(position), Toast.LENGTH_SHORT).show();
                 } catch (IOException e) {
-                    Toast.makeText(MainActivity.this, e.getMessage(), Toast.LENGTH_LONG).show();
+                    Toast.makeText(MainActivity.this, e.getMessage(), Toast.LENGTH_SHORT).show();
                 }
                 appDrawerLayout.closeDrawers();
             }
@@ -333,13 +308,22 @@ public class MainActivity extends AppCompatActivity {
 
             @Override
             public void onDrawerOpened(View drawerView) {
-                final String[] fileNameArray = fileList();
-                Arrays.sort(fileNameArray);
                 appDrawListAdapter.clear();
                 appDrawListAdapter.add("demo data 1");
                 appDrawListAdapter.add("demo data 2");
                 appDrawListAdapter.add("demo data 3");
-                appDrawListAdapter.addAll(Arrays.asList(fileNameArray));
+                if (PackageManager.PERMISSION_GRANTED != ContextCompat.checkSelfPermission(getApplicationContext(), Manifest.permission.WRITE_EXTERNAL_STORAGE)) {
+                    ActivityCompat.requestPermissions(MainActivity.this, new String[]{Manifest.permission.WRITE_EXTERNAL_STORAGE}, 123);
+                } else {
+                    final File sdCard = Environment.getExternalStorageDirectory();
+                    final File flightLogsDirectory = new File(sdCard.getAbsolutePath() + "/FlightLogs");
+//                final String[] fileNameArray = fileList();
+                    final String[] fileNameArray = flightLogsDirectory.list();
+                    if (fileNameArray != null) {
+                        Arrays.sort(fileNameArray);
+                        appDrawListAdapter.addAll(Arrays.asList(fileNameArray));
+                    }
+                }
             }
 
             @Override
@@ -356,8 +340,13 @@ public class MainActivity extends AppCompatActivity {
             @Override
             public void onClick(View view) {
                 try {
+                    final File sdCard = Environment.getExternalStorageDirectory();
+                    final File flightLogsDirectory = new File(sdCard.getAbsolutePath() + "/FlightLogs");
+                    flightLogsDirectory.mkdirs();
                     final SimpleDateFormat simpleDateFormat = new SimpleDateFormat("dd-MMM-yyyy hh:mm");
-                    FileOutputStream fileOutputStream = openFileOutput(simpleDateFormat.format(new Date()), Context.MODE_PRIVATE);
+                    final File file = new File(flightLogsDirectory, simpleDateFormat.format(new Date()) + ".json");
+                    final FileOutputStream fileOutputStream = new FileOutputStream(file);
+//                    openFileOutput(simpleDateFormat.format(new Date()), Context.MODE_PRIVATE);
                     synchronized (jsonDataLock) {
                         fileOutputStream.write(sharedJsonData.getBytes());
                     }
@@ -374,7 +363,7 @@ public class MainActivity extends AppCompatActivity {
                 //myWebView.loadUrl("http://192.168.1.1/graph.json");
                 //myWebView.loadUrl("file:///android_asset/html/graphs.html");
                 //saveFlightData.show();
-                Snackbar.make(view, "Flight Graphs", Snackbar.LENGTH_LONG).setAction("Action", null).show();
+                Snackbar.make(view, "Flight Graphs", Snackbar.LENGTH_SHORT).setAction("Action", null).show();
             }
         });
         connectionButton = (FloatingActionButton) findViewById(R.id.conectionInfo);
@@ -404,10 +393,9 @@ public class MainActivity extends AppCompatActivity {
                     //myWebView.loadUrl("file:///android_asset/html/connected.html");
                     //    myWebView.loadUrl("http://192.168.1.1/graph.json");
                 }
-                bindToNetwork(true);
                 //saveFlightData.hide();
                 //myWebView.loadUrl("http://192.168.1.1/telemetry");
-                Snackbar.make(view, wifiMessage, Snackbar.LENGTH_LONG).setAction("Action", null).show();
+                Snackbar.make(view, wifiMessage, Snackbar.LENGTH_SHORT).setAction("Action", null).show();
             }
         });
         connectionCheckHandler.postDelayed(connectionCheckRunnable, 0);
