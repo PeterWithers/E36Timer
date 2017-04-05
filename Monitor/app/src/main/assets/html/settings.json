@@ -49,6 +49,24 @@
                     "rel": "self",
                     "href": "hasPressureSensor"
                 }]
+        }, {
+            "boolean": true,
+            "description": "Device Function",
+            "name": "deviceFunction",
+            "links": [{
+                    "rel": "timer",
+                    "href": "functionAsTimer",
+                    "rel": "remote",
+                    "href": "functionAsRemote"
+                }]
+        }, {
+            "boolean": true,
+            "description": "Save Requred",
+            "name": "save",
+            "links": [{
+                    "rel": "self",
+                    "href": "saveSettings"
+                }]
         }],
     "links": [{
             "rel": "self",
