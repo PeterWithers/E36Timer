@@ -82,82 +82,83 @@ public class MainActivity extends AppCompatActivity {
     volatile String sharedJsonData = "";
     volatile int currentJsonGraphIndex = 0;
     static final Object jsonDataLock = new Object();
-    private JSONArray altitudeHistoryRms = new JSONArray();
     private JSONArray altitudeHistorySmoothed = new JSONArray();
     private JSONArray escHistoryFull = new JSONArray();
     private JSONArray dtHistoryFull = new JSONArray();
     private JSONArray altitudeHistoryFull = new JSONArray();
     private JSONArray temperatureHistoryFull = new JSONArray();
+    private JSONArray rssiHistoryFull = new JSONArray();
     private RequestQueue requestQueue;
     private Handler connectionCheckHandler = new Handler();
     private AsyncTask connectionAsyncTask = null;
 
-    private AsyncTask getAsyncTask() {
-        return new AsyncTask<URL, Integer, String>() {
-            protected String doInBackground(URL... url) {
-                if (timerNetwork == null) {
+    private String makeConnection(URL url) {
+        if (timerNetwork == null) {
 //                WifiManager wifiManager = (WifiManager) getApplicationContext().getSystemService(Context.WIFI_SERVICE);
 //                WifiInfo wifiInfo = wifiManager.getConnectionInfo();
 //                if (wifiInfo.getSSID() == null || !wifiInfo.getSSID().equals("\"E36 Timer\"")) {
-                    final ConnectivityManager connectivityManager = (ConnectivityManager) getApplicationContext().getSystemService(Context.CONNECTIVITY_SERVICE);
-                    for (Network network : connectivityManager.getAllNetworks()) {
-                        NetworkInfo networkInfo = connectivityManager.getNetworkInfo(network);
+            final ConnectivityManager connectivityManager = (ConnectivityManager) getApplicationContext().getSystemService(Context.CONNECTIVITY_SERVICE);
+            for (Network network : connectivityManager.getAllNetworks()) {
+                NetworkInfo networkInfo = connectivityManager.getNetworkInfo(network);
 //                        System.out.println("network:" + network.toString());
 //                        System.out.println("networkinfo:" + networkInfo.getTypeName());
 //                        System.out.println("networkinfo:" + networkInfo.isConnected());
 //                        System.out.println("networkinfo:" + networkInfo.getTypeName());
-                        if (networkInfo.getType() == ConnectivityManager.TYPE_WIFI
-                                && networkInfo.isConnected()
-                                && "\"E36 Timer\"".equals(networkInfo.getExtraInfo())) {
-                            timerNetwork = network;
-                        }
-                    }
+                if (networkInfo.getType() == ConnectivityManager.TYPE_WIFI
+                        && networkInfo.isConnected()
+                        && "\"E36 Timer\"".equals(networkInfo.getExtraInfo())) {
+                    timerNetwork = network;
+                }
+            }
 //                }
-                }
-                if (timerNetwork != null) {
-                    try {
-                        InputStreamReader inputStreamReader;
-                        URLConnection urlConnection = timerNetwork.openConnection(url[0]);
-                        inputStreamReader = new InputStreamReader(urlConnection.getInputStream());
+        }
+        if (timerNetwork != null) {
+            try {
+                InputStreamReader inputStreamReader;
+                URLConnection urlConnection = timerNetwork.openConnection(url);
+                inputStreamReader = new InputStreamReader(urlConnection.getInputStream());
 
-                        BufferedReader bufferedReader = new BufferedReader(inputStreamReader);
-                        StringBuilder stringBuilder = new StringBuilder();
-                        String line;
-                        while ((line = bufferedReader.readLine()) != null) {
-                            stringBuilder.append(line);
-                        }
-                        return stringBuilder.toString();
-                    } catch (IOException e) {
-                        timerNetwork = null;
-                    }
+                BufferedReader bufferedReader = new BufferedReader(inputStreamReader);
+                StringBuilder stringBuilder = new StringBuilder();
+                String line;
+                while ((line = bufferedReader.readLine()) != null) {
+                    stringBuilder.append(line);
                 }
-                return null;
+                return stringBuilder.toString();
+            } catch (IOException e) {
+                timerNetwork = null;
             }
-
-            protected void onProgressUpdate(Integer... progress) {
-            }
-
-            protected void onPostExecute(String result) {
-                if (result == null || result.isEmpty()) {
-                    Toast.makeText(MainActivity.this, (result == null) ? "network result null" : "network result empty", Toast.LENGTH_SHORT).show();
-                    saveFlightData.hide();
-                    flightGraphsButton.hide();
-                } else if (monitorState == MonitorState.liveGraph) {
-                    updateGraphWithJson(result);
-                    saveFlightData.show();
-                } else {
-                    saveFlightData.hide();
-                }
-            }
-        };
+        }
+        return null;
     }
+
     Runnable connectionCheckRunnable = new Runnable() {
         @Override
         public void run() {
             if (monitorState == MonitorState.liveGraph) {
                 try {
                     if (connectionAsyncTask == null || connectionAsyncTask.getStatus() != AsyncTask.Status.RUNNING) {
-                        connectionAsyncTask = getAsyncTask();
+                        connectionAsyncTask = new AsyncTask<URL, Integer, String>() {
+                            protected String doInBackground(URL... url) {
+                                return makeConnection(url[0]);
+                            }
+
+                            protected void onProgressUpdate(Integer... progress) {
+                            }
+
+                            protected void onPostExecute(String result) {
+                                if (result == null || result.isEmpty()) {
+                                    Toast.makeText(MainActivity.this, (result == null) ? "network result null" : "network result empty", Toast.LENGTH_SHORT).show();
+                                    saveFlightData.hide();
+                                    flightGraphsButton.hide();
+                                } else if (monitorState == MonitorState.liveGraph) {
+                                    updateGraphWithJson(result);
+                                    saveFlightData.show();
+                                } else {
+                                    saveFlightData.hide();
+                                }
+                            }
+                        };
                         connectionAsyncTask.execute(new URL[]{new URL("http://192.168.1.1/graph.json?start=" + currentJsonGraphIndex)});
                     }
                 } catch (MalformedURLException e) {
@@ -169,6 +170,18 @@ public class MainActivity extends AppCompatActivity {
             connectionCheckHandler.postDelayed(this, 2000);
         }
     };
+
+    private void addSettingsUiFromJson(String jsonDataString) {
+        try {
+            final JSONObject jsonObject = new JSONObject(jsonDataString);
+            final JSONArray settingsJson = (JSONArray) jsonObject.get("settings");
+            for (int index = 0; index < settingsJson.length(); index++) {
+                appDrawListAdapter.add(settingsJson.getJSONObject(index).get("description").toString());
+            }
+        } catch (JSONException e) {
+            Toast.makeText(MainActivity.this, e.getMessage(), Toast.LENGTH_SHORT).show();
+        }
+    }
 
     private void updateGraphWithJson(String jsonDataString) {
         try {
@@ -188,12 +201,12 @@ public class MainActivity extends AppCompatActivity {
             if (totalLength < currentJsonGraphIndex) {
                 // if the length is wrong then we have stale data and should reset the arrays
                 currentJsonGraphIndex = 0;
-                altitudeHistoryRms = new JSONArray();
                 altitudeHistorySmoothed = new JSONArray();
                 escHistoryFull = new JSONArray();
                 dtHistoryFull = new JSONArray();
                 altitudeHistoryFull = new JSONArray();
                 temperatureHistoryFull = new JSONArray();
+                rssiHistoryFull = new JSONArray();
                 return;
             }
             try {
@@ -207,7 +220,6 @@ public class MainActivity extends AppCompatActivity {
                     value2 = value1;
                     value1 = value0;
                     value0 = value;
-                    altitudeHistoryRms.put(startIndex + index, Math.sqrt((value5 * value5 + value4 * value4 + value3 * value3 + value2 * value2 + value1 * value1 + value0 * value0) / 6));
                     altitudeHistorySmoothed.put(startIndex + index, (value5 * 0.1 + value4 * 0.1 + value3 * 0.2 + value2 * 0.3 + value1 * 0.2 + value0 * 0.1));
                     escHistoryFull.put(startIndex + index, escHistory.getInt(index));
                     dtHistoryFull.put(startIndex + index, dtHistory.getInt(index));
@@ -217,11 +229,16 @@ public class MainActivity extends AppCompatActivity {
             } catch (JSONException e) {
 //                Toast.makeText(MainActivity.this, e.getMessage(), Toast.LENGTH_SHORT).show();
             }
+            while (rssiHistoryFull.length() < altitudeHistoryFull.length() - 1) {
+                rssiHistoryFull.put(null);
+            }
+            WifiManager wifiManager = (WifiManager) getApplicationContext().getSystemService(Context.WIFI_SERVICE);
+            rssiHistoryFull.put(wifiManager.getConnectionInfo().getRssi());
             //.splice(" + startIndex + "," + dataLength + "," + 
             currentJsonGraphIndex = altitudeHistoryFull.length();
             //currentJsonGraphIndex = (currentJsonGraphIndex > totalLength) ? totalLength : currentJsonGraphIndex;
             myWebView.loadUrl("javascript:flightChart.data.datasets[0].data = " + altitudeHistoryFull.toString() + ";");
-            myWebView.loadUrl("javascript:flightChart.data.datasets[1].data = " + altitudeHistoryRms.toString() + ";");
+            myWebView.loadUrl("javascript:flightChart.data.datasets[1].data = " + rssiHistoryFull.toString() + ";");
             myWebView.loadUrl("javascript:flightChart.data.datasets[2].data = " + altitudeHistorySmoothed.toString() + ";");
             myWebView.loadUrl("javascript:flightChart.data.datasets[3].data = " + temperatureHistoryFull.toString() + ";");
             myWebView.loadUrl("javascript:flightChart.data.datasets[4].data = " + escHistoryFull.toString() + ";");
@@ -323,6 +340,37 @@ public class MainActivity extends AppCompatActivity {
                         Arrays.sort(fileNameArray);
                         appDrawListAdapter.addAll(Arrays.asList(fileNameArray));
                     }
+                }
+                try {
+                    new AsyncTask<URL, Integer, String>() {
+                        protected String doInBackground(URL... url) {
+                            return makeConnection(url[0]);
+                        }
+
+                        protected void onProgressUpdate(Integer... progress) {
+                        }
+
+                        protected void onPostExecute(String result) {
+                            if (result != null && !result.isEmpty()) {
+                                addSettingsUiFromJson(result);
+                            }
+                        }
+                    }.execute(new URL[]{new URL("http://192.168.1.1/settings")});
+                } catch (MalformedURLException e) {
+                    Toast.makeText(MainActivity.this, e.getMessage(), Toast.LENGTH_SHORT).show();
+                }
+                try{
+                InputStream inputStream = getAssets().open("html/settings.json");
+                InputStreamReader inputStreamReader = new InputStreamReader(inputStream);
+                BufferedReader bufferedReader = new BufferedReader(inputStreamReader);
+                StringBuilder stringBuilder = new StringBuilder();
+                String line;
+                while ((line = bufferedReader.readLine()) != null) {
+                    stringBuilder.append(line);
+                }
+                addSettingsUiFromJson(stringBuilder.toString());
+                } catch (IOException e) {
+                    Toast.makeText(MainActivity.this, e.getMessage(), Toast.LENGTH_SHORT).show();
                 }
             }
 
