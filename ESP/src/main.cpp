@@ -1139,6 +1139,7 @@ void requestFirmwareUpdate() {
     if (ButtonIsDown) {
         httpUpdater.setup(&webServer);
         responseString += "Update service ready";
+        responseString += "<br/><br/><a href='update'>upload form</a>";
         responseCode = 200;
     } else {
         responseString += "Please hold down the button to begin update";
