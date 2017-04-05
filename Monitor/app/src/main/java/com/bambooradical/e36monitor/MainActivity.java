@@ -88,6 +88,8 @@ public class MainActivity extends AppCompatActivity {
     private JSONArray altitudeHistoryFull = new JSONArray();
     private JSONArray temperatureHistoryFull = new JSONArray();
     private JSONArray rssiHistoryFull = new JSONArray();
+    private JSONArray rssiHistory1Full = new JSONArray();
+    private JSONArray rssiHistory2Full = new JSONArray();
     private RequestQueue requestQueue;
     private Handler connectionCheckHandler = new Handler();
     private AsyncTask connectionAsyncTask = null;
@@ -159,7 +161,7 @@ public class MainActivity extends AppCompatActivity {
                                 }
                             }
                         };
-                        connectionAsyncTask.execute(new URL[]{new URL("http://192.168.1.1/graph.json?start=" + currentJsonGraphIndex)});
+                        connectionAsyncTask.execute(new URL("http://192.168.1.1/graph.json?start=" + currentJsonGraphIndex));
                     }
                 } catch (MalformedURLException e) {
                     Toast.makeText(MainActivity.this, e.getMessage(), Toast.LENGTH_SHORT).show();
@@ -190,6 +192,8 @@ public class MainActivity extends AppCompatActivity {
             final JSONArray dtHistory = (JSONArray) jsonObject.get("dtHistory");
             final JSONArray altitudeHistory = (JSONArray) jsonObject.get("altitudeHistory");
             final JSONArray temperatureHistory = (JSONArray) jsonObject.get("temperatureHistory");
+            final JSONArray rssiHistory1 = (JSONArray) jsonObject.get("rssiHistory1");
+            final JSONArray rssiHistory2 = (JSONArray) jsonObject.get("rssiHistory2");
             double value0 = 0;
             double value1 = 0;
             double value2 = 0;
@@ -207,6 +211,8 @@ public class MainActivity extends AppCompatActivity {
                 altitudeHistoryFull = new JSONArray();
                 temperatureHistoryFull = new JSONArray();
                 rssiHistoryFull = new JSONArray();
+                rssiHistory1Full = new JSONArray();
+                rssiHistory2Full = new JSONArray();
                 return;
             }
             try {
@@ -225,6 +231,8 @@ public class MainActivity extends AppCompatActivity {
                     dtHistoryFull.put(startIndex + index, dtHistory.getInt(index));
                     altitudeHistoryFull.put(startIndex + index, altitudeHistory.getDouble(index));
                     temperatureHistoryFull.put(startIndex + index, temperatureHistory.getDouble(index));
+                    rssiHistory1Full.put(startIndex + index, rssiHistory1.getInt(index));
+                    rssiHistory2Full.put(startIndex + index, rssiHistory2.getInt(index));
                 }
             } catch (JSONException e) {
 //                Toast.makeText(MainActivity.this, e.getMessage(), Toast.LENGTH_SHORT).show();
@@ -238,11 +246,14 @@ public class MainActivity extends AppCompatActivity {
             currentJsonGraphIndex = altitudeHistoryFull.length();
             //currentJsonGraphIndex = (currentJsonGraphIndex > totalLength) ? totalLength : currentJsonGraphIndex;
             myWebView.loadUrl("javascript:flightChart.data.datasets[0].data = " + altitudeHistoryFull.toString() + ";");
-            myWebView.loadUrl("javascript:flightChart.data.datasets[1].data = " + rssiHistoryFull.toString() + ";");
+//            myWebView.loadUrl("javascript:flightChart.data.datasets[1].data = " + rssiHistoryFull.toString() + ";");
             myWebView.loadUrl("javascript:flightChart.data.datasets[2].data = " + altitudeHistorySmoothed.toString() + ";");
             myWebView.loadUrl("javascript:flightChart.data.datasets[3].data = " + temperatureHistoryFull.toString() + ";");
             myWebView.loadUrl("javascript:flightChart.data.datasets[4].data = " + escHistoryFull.toString() + ";");
             myWebView.loadUrl("javascript:flightChart.data.datasets[5].data = " + dtHistoryFull.toString() + ";");
+            myWebView.loadUrl("javascript:flightChart.data.datasets[6].data = " + rssiHistoryFull.toString() + ";");
+            myWebView.loadUrl("javascript:flightChart.data.datasets[7].data = " + rssiHistory1Full.toString() + ";");
+            myWebView.loadUrl("javascript:flightChart.data.datasets[8].data = " + rssiHistory2Full.toString() + ";");
             myWebView.loadUrl("javascript:flightChart.data.labels = new Array(" + totalLength + ");");
             myWebView.loadUrl("javascript:flightChart.update();");
             synchronized (jsonDataLock) {
@@ -359,16 +370,16 @@ public class MainActivity extends AppCompatActivity {
                 } catch (MalformedURLException e) {
                     Toast.makeText(MainActivity.this, e.getMessage(), Toast.LENGTH_SHORT).show();
                 }
-                try{
-                InputStream inputStream = getAssets().open("html/settings.json");
-                InputStreamReader inputStreamReader = new InputStreamReader(inputStream);
-                BufferedReader bufferedReader = new BufferedReader(inputStreamReader);
-                StringBuilder stringBuilder = new StringBuilder();
-                String line;
-                while ((line = bufferedReader.readLine()) != null) {
-                    stringBuilder.append(line);
-                }
-                addSettingsUiFromJson(stringBuilder.toString());
+                try {
+                    InputStream inputStream = getAssets().open("html/settings.json");
+                    InputStreamReader inputStreamReader = new InputStreamReader(inputStream);
+                    BufferedReader bufferedReader = new BufferedReader(inputStreamReader);
+                    StringBuilder stringBuilder = new StringBuilder();
+                    String line;
+                    while ((line = bufferedReader.readLine()) != null) {
+                        stringBuilder.append(line);
+                    }
+                    addSettingsUiFromJson(stringBuilder.toString());
                 } catch (IOException e) {
                     Toast.makeText(MainActivity.this, e.getMessage(), Toast.LENGTH_SHORT).show();
                 }

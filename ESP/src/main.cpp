@@ -45,7 +45,8 @@ float temperatureHistory[1024];
 float altitudeHistory[1024];
 int escHistory[1024];
 int dtHistory[1024];
-int rssiHistory[1024];
+int rssiHistory1[1024];
+int rssiHistory2[1024];
 int maxSvgValue = 0;
 
 //#define TRIGGER_PIN  3
@@ -557,6 +558,7 @@ void updateHistory() {
         altitudeHistory[currentIndex] = altitude;
         escHistory[currentIndex] = escServo.read();
         dtHistory[currentIndex] = dtServo.read();
+        rssiHistory2[currentIndex] = WiFi.RSSI();
 
         maxSvgValue = (maxSvgValue < altitudeHistory[currentIndex]) ? altitudeHistory[currentIndex] : maxSvgValue;
         maxSvgValue = (maxSvgValue < temperatureHistory[currentIndex]) ? temperatureHistory[currentIndex] : maxSvgValue;
@@ -569,7 +571,7 @@ void updateHistory() {
 
 void onProbeRequestPrint(const WiFiEventSoftAPModeProbeRequestReceived& evt) {
     int currentIndex = (millis() / 1000) % historyLength;
-    rssiHistory[currentIndex] = evt.rssi;
+    rssiHistory1[currentIndex] = evt.rssi;
 }
 
 void tweenPwmValues() {
@@ -614,12 +616,12 @@ void loop() {
             if (servoPosition <= MinPwm) {
                 machineState = waitingButtonRelease2;
                 lastStateChangeMs = millis();
-//                memset(temperatureHistory,0,sizeof(temperatureHistory));
-//                memset(altitudeHistory,0,sizeof(altitudeHistory));
-//                memset(escHistory,0,sizeof(escHistory));
-//                memset(dtHistory,0,sizeof(dtHistory));
-//                memset(rssiHistory,0,sizeof(rssiHistory));
-//                TODO: there needs to be a way to zero the historyIndex, eg store the history start mss
+                //                memset(temperatureHistory,0,sizeof(temperatureHistory));
+                //                memset(altitudeHistory,0,sizeof(altitudeHistory));
+                //                memset(escHistory,0,sizeof(escHistory));
+                //                memset(dtHistory,0,sizeof(dtHistory));
+                //                memset(rssiHistory,0,sizeof(rssiHistory));
+                //                TODO: there needs to be a way to zero the historyIndex, eg store the history start mss
             }
             sendTelemetry();
             break;
@@ -972,9 +974,15 @@ void getGraphData() {
         graphData += ", ";
     }
     graphData += "];";
-    graphData += "rssiHistory: [";
+    graphData += "rssiHistory1: [";
     for (int currentIndex = startIndex; currentIndex < endIndex; currentIndex++) {
-        graphData += (rssiHistory[currentIndex]);
+        graphData += (rssiHistory1[currentIndex]);
+        graphData += ", ";
+    }
+    graphData += "];";
+    graphData += "rssiHistory2: [";
+    for (int currentIndex = startIndex; currentIndex < endIndex; currentIndex++) {
+        graphData += (rssiHistory2[currentIndex]);
         graphData += ", ";
     }
     graphData += "]}";
