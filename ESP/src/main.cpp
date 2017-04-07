@@ -37,6 +37,7 @@ ESP8266HTTPUpdateServer httpUpdater;
 
 Sodaq_BMP085 pressureSensor;
 double baselinePressure;
+bool isTimer = true;
 bool hasPressureSensor = true;
 
 int historyLength = 1024;
@@ -135,6 +136,9 @@ volatile int dethermalSecondsIndex = 0;
 const int waitingEscValue = ((MaxPwm - MinPwm) / 3) + MinPwm;
 volatile int buttonHasBeenUp = 0;
 
+char ssid[32] = "";
+char password[32] = "";
+
 void slowFlash() {
     if (millis() / 1000 % 2 == 0) {
         TurnOnLed;
@@ -169,13 +173,27 @@ void trippleFlash() {
     }
 }
 
+void setCredentials() {
+    if (webServer.hasArg("ssid") && webServer.hasArg("pass")) {
+        webServer.arg("ssid").toCharArray(ssid, sizeof (ssid) - 1);
+        webServer.arg("pass").toCharArray(password, sizeof (password) - 1);
+        EEPROM.begin(512);
+        EEPROM.put(9, ssid);
+        EEPROM.put(9 + sizeof (ssid), password);
+        char ok[2 + 1] = "OK";
+        EEPROM.put(9 + sizeof (ssid) + sizeof (password), ok);
+        EEPROM.commit();
+        EEPROM.end();
+    }
+}
+
 void saveSettings() {
     boolean changeMade = false;
+    EEPROM.begin(512);
     Serial.print(" motorSecondsIndex: ");
     Serial.print(motorSecondsIndex);
     Serial.print(" EEPROM.read(1): ");
     Serial.print(EEPROM.read(1));
-
     // using update not write to preserve eeprom life
     // update does not seem to exist in the ESP library so we test before setting to preserve the eeprom
     if (EEPROM.read(1) != motorSecondsIndex) {
@@ -192,19 +210,41 @@ void saveSettings() {
     } else {
         Serial.print(" dethermalSecondsIndex unchanged");
     }
+    byte settingsByte = EEPROM.read(3);
+    if (bitRead(settingsByte, 0) != isTimer) {
+        Serial.print(" toggleTimerOrRemote storing changes");
+        bitWrite(settingsByte, 0, isTimer);
+        EEPROM.write(3, settingsByte);
+        changeMade = true;
+    } else {
+        Serial.print(" toggleTimerOrRemote unchanged");
+    }
     if (changeMade) {
         Serial.print(" writing changes");
         EEPROM.commit();
     } else {
         Serial.print(" unchanged no commit");
     }
+    EEPROM.end();
 }
 
 void loadSavedSettings() {
+    EEPROM.begin(512);
     motorSecondsIndex = EEPROM.read(1);
     dethermalSecondsIndex = EEPROM.read(2);
+    byte settingsByte = EEPROM.read(3);
+    isTimer = bitRead(settingsByte, 0);
     motorSecondsIndex = (motorSecondsIndex < motorSecondsSize) ? motorSecondsIndex : motorSecondsSize - 1;
     dethermalSecondsIndex = (dethermalSecondsIndex < dethermalSecondsSize) ? dethermalSecondsIndex : dethermalSecondsSize - 1;
+    EEPROM.get(9, ssid);
+    EEPROM.get(9 + sizeof (ssid), password);
+    char ok[2 + 1];
+    EEPROM.get(9 + sizeof (ssid) + sizeof (password), ok);
+    if (String(ok) != String("OK")) {
+        ssid[0] = 0;
+        password[0] = 0;
+    }
+    EEPROM.end();
 }
 
 void pinChangeInterrupt() {
@@ -925,6 +965,14 @@ void getSettingsJson() {
                     \"rel\": \"self\",\
                     \"href\": \"toggleSensors\"\
                 }]\
+        }, {\
+            \"boolean\": true,\
+            \"description\": \"Timer or Remote\",\
+            \"name\": \"isTimer\",\
+            \"links\": [{\
+                    \"rel\": \"self\",\
+                    \"href\": \"toggleTimerOrRemote\"\
+                }]\
         }],\
     \"links\": [{\
             \"rel\": \"self\",\
@@ -1090,6 +1138,7 @@ void defaultPage() {
             "<a href='dtDecrease'>dtDecrease</a>&nbsp;"
             "<a href='dtIncrease'>dtIncrease</a><br/><br/>"
             "<a href='toggleSensors'>toggleSensors</a><br/><br/>"
+            "<a href='toggleTimerOrRemote'>toggleTimerOrRemote</a><br/><br/>"
             "<a href='saveChanges'>saveChanges</a><br/><br/>"
             "<a href='settings'>Settings JSON</a><br/><br/>"
             "<a href='requestFirmwareUpdate'>FirmwareUpdate</a><br/><br/>"
@@ -1174,14 +1223,19 @@ void toggleSensors() {
     webServer.sendContent((hasPressureSensor) ? "using sensors" : "ignoring sensors");
 }
 
+void toggleTimerOrRemote() {
+    // todo: for now there would be no way to get back to being a timer so this is disable for now
+    //isTimer = !isTimer;
+    webServer.sendContent((isTimer) ? "isTimer" : "isRemote");
+}
+
 void setup() {
     Serial.begin(115200);
     delay(10);
     Serial.print("E36");
-    EEPROM.begin(4);
     loadSavedSettings();
     setupRegisters();
-    if (true) {
+    if (isTimer) {
         attachInterrupt(1, pinChangeInterrupt, CHANGE);
         if (ButtonIsDown) {
             machineState = throttleMax;
@@ -1194,7 +1248,7 @@ void setup() {
         pwmTweenTimer.attach_ms(100, tweenPwmValues);
         WiFi.mode(WIFI_AP);
         WiFi.softAPConfig(timerIP, timerIP, IPAddress(255, 255, 255, 0));
-        WiFi.softAP("E36 Timer");
+        WiFi.softAP((ssid[0] != 0) ? ssid : "E36 Timer"); // not using , password yet
 
         // if DNSServer is started with "*" for domain name, it will reply with
         // provided IP to all DNS request
@@ -1212,6 +1266,7 @@ void setup() {
         webServer.on("/dtIncrease", dtIncrease);
         webServer.on("/saveChanges", saveChanges);
         webServer.on("/toggleSensors", toggleSensors);
+        webServer.on("/toggleTimerOrRemote", toggleTimerOrRemote);
         webServer.on("/requestFirmwareUpdate", requestFirmwareUpdate);
         webServer.on("/settings", HTTP_GET, getSettingsJson);
         //webServer.on("/dethermalSeconds", HTTP_PUT, putDethermalSeconds);
@@ -1224,7 +1279,7 @@ void setup() {
     } else {
         WiFi.mode(WIFI_STA);
         WiFi.config(remoteIP, timerIP, IPAddress(255, 255, 255, 0));
-        WiFi.begin("E36 Timer");
+        WiFi.begin(ssid); // not using , password yet
         while (WiFi.status() != WL_CONNECTED) {
             delay(500);
         }
