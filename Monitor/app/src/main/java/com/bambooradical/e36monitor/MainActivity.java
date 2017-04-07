@@ -92,6 +92,7 @@ public class MainActivity extends AppCompatActivity {
     private JSONArray rssiHistory2Full = new JSONArray();
     private RequestQueue requestQueue;
     private Handler connectionCheckHandler = new Handler();
+    long graphDataCheckMs = 2000;
     private AsyncTask connectionAsyncTask = null;
 
     private String makeConnection(URL url) {
@@ -154,14 +155,14 @@ public class MainActivity extends AppCompatActivity {
                                     saveFlightData.hide();
                                     flightGraphsButton.hide();
                                 } else if (monitorState == MonitorState.liveGraph) {
-                                    updateGraphWithJson(result);
+                                    updateGraphWithJson("Live Data", result, true);
                                     saveFlightData.show();
                                 } else {
                                     saveFlightData.hide();
                                 }
                             }
                         };
-                        connectionAsyncTask.execute(new URL("http://192.168.1.1/graph.json?start=" + currentJsonGraphIndex));
+                        connectionAsyncTask.execute(new URL[]{new URL("http://192.168.1.1/graph.json?start=" + currentJsonGraphIndex)});
                     }
                 } catch (MalformedURLException e) {
                     Toast.makeText(MainActivity.this, e.getMessage(), Toast.LENGTH_SHORT).show();
@@ -169,7 +170,7 @@ public class MainActivity extends AppCompatActivity {
             } else {
                 saveFlightData.hide();
             }
-            connectionCheckHandler.postDelayed(this, 2000);
+            connectionCheckHandler.postDelayed(this, graphDataCheckMs);
         }
     };
 
@@ -185,15 +186,22 @@ public class MainActivity extends AppCompatActivity {
         }
     }
 
-    private void updateGraphWithJson(String jsonDataString) {
+    private void updateGraphWithJson(String graphTitle, String jsonDataString, boolean isConnected) {
         try {
+            boolean hasExtraHistory = true;
             final JSONObject jsonObject = new JSONObject(jsonDataString);
             final JSONArray escHistory = (JSONArray) jsonObject.get("escHistory");
             final JSONArray dtHistory = (JSONArray) jsonObject.get("dtHistory");
             final JSONArray altitudeHistory = (JSONArray) jsonObject.get("altitudeHistory");
             final JSONArray temperatureHistory = (JSONArray) jsonObject.get("temperatureHistory");
-            final JSONArray rssiHistory1 = (JSONArray) jsonObject.get("rssiHistory1");
-            final JSONArray rssiHistory2 = (JSONArray) jsonObject.get("rssiHistory2");
+            JSONArray rssiHistory1 = null;
+            JSONArray rssiHistory2 = null;
+            try {
+                rssiHistory1 = (JSONArray) jsonObject.get("rssiHistory1");
+                rssiHistory2 = (JSONArray) jsonObject.get("rssiHistory2");
+            } catch (JSONException e) {
+                hasExtraHistory = false;
+            }
             double value0 = 0;
             double value1 = 0;
             double value2 = 0;
@@ -202,7 +210,7 @@ public class MainActivity extends AppCompatActivity {
             double value5 = 0;
             int startIndex = (int) jsonObject.get("startIndex");
             int totalLength = (int) jsonObject.get("historyIndex");
-            if (totalLength < currentJsonGraphIndex) {
+            if (startIndex == 0) { // todo: add and compare start time ms as converted into date time
                 // if the length is wrong then we have stale data and should reset the arrays
                 currentJsonGraphIndex = 0;
                 altitudeHistorySmoothed = new JSONArray();
@@ -213,7 +221,6 @@ public class MainActivity extends AppCompatActivity {
                 rssiHistoryFull = new JSONArray();
                 rssiHistory1Full = new JSONArray();
                 rssiHistory2Full = new JSONArray();
-                return;
             }
             try {
                 for (int index = 0; index < altitudeHistory.length() && startIndex + index < totalLength; index++) {
@@ -231,19 +238,33 @@ public class MainActivity extends AppCompatActivity {
                     dtHistoryFull.put(startIndex + index, dtHistory.getInt(index));
                     altitudeHistoryFull.put(startIndex + index, altitudeHistory.getDouble(index));
                     temperatureHistoryFull.put(startIndex + index, temperatureHistory.getDouble(index));
-                    rssiHistory1Full.put(startIndex + index, rssiHistory1.getInt(index));
-                    rssiHistory2Full.put(startIndex + index, rssiHistory2.getInt(index));
+                    if (hasExtraHistory) {
+                        rssiHistory1Full.put(startIndex + index, rssiHistory1.getInt(index));
+                        rssiHistory2Full.put(startIndex + index, rssiHistory2.getInt(index));
+                    }
                 }
             } catch (JSONException e) {
 //                Toast.makeText(MainActivity.this, e.getMessage(), Toast.LENGTH_SHORT).show();
             }
-            while (rssiHistoryFull.length() < altitudeHistoryFull.length() - 1) {
-                rssiHistoryFull.put(null);
+            if (isConnected) {
+                while (rssiHistoryFull.length() < altitudeHistoryFull.length() - 1) {
+                    rssiHistoryFull.put(null);
+                }
+                WifiManager wifiManager = (WifiManager) getApplicationContext().getSystemService(Context.WIFI_SERVICE);
+                rssiHistoryFull.put(wifiManager.getConnectionInfo().getRssi());
             }
-            WifiManager wifiManager = (WifiManager) getApplicationContext().getSystemService(Context.WIFI_SERVICE);
-            rssiHistoryFull.put(wifiManager.getConnectionInfo().getRssi());
+            myWebView.loadUrl("javascript:$(\"#graphTitle\").html(\"" + graphTitle + "\");");
+            try {
+                myWebView.loadUrl("javascript:$(\"#machineState\").html(\"" + jsonObject.get("machineState") + "\");");
+                myWebView.loadUrl("javascript:$(\"#motorSeconds\").html(\"" + jsonObject.get("motorSeconds") + "\");");
+                myWebView.loadUrl("javascript:$(\"#dethermalSeconds\").html(\"" + jsonObject.get("dethermalSeconds") + "\");");
+            } catch (JSONException e) {
+                myWebView.loadUrl("javascript:$(\"#machineState\").html(\"\");");
+                myWebView.loadUrl("javascript:$(\"#motorSeconds\").html(\"\");");
+                myWebView.loadUrl("javascript:$(\"#dethermalSeconds\").html(\"\");");
+            }
             //.splice(" + startIndex + "," + dataLength + "," + 
-            currentJsonGraphIndex = altitudeHistoryFull.length();
+            currentJsonGraphIndex = (isConnected) ? altitudeHistoryFull.length() : 0;
             //currentJsonGraphIndex = (currentJsonGraphIndex > totalLength) ? totalLength : currentJsonGraphIndex;
             myWebView.loadUrl("javascript:flightChart.data.datasets[0].data = " + altitudeHistoryFull.toString() + ";");
 //            myWebView.loadUrl("javascript:flightChart.data.datasets[1].data = " + rssiHistoryFull.toString() + ";");
@@ -262,6 +283,9 @@ public class MainActivity extends AppCompatActivity {
                 jsonObject.put("temperatureHistory", temperatureHistoryFull);
                 jsonObject.put("escHistory", escHistoryFull);
                 jsonObject.put("dtHistory", dtHistoryFull);
+                jsonObject.put("rssiHistory", rssiHistoryFull);
+                jsonObject.put("rssiHistory1", rssiHistory1Full);
+                jsonObject.put("rssiHistory2", rssiHistory2Full);
                 jsonObject.put("startIndex", 0);
                 sharedJsonData = jsonObject.toString();
             }
@@ -316,7 +340,7 @@ public class MainActivity extends AppCompatActivity {
                     while ((line = bufferedReader.readLine()) != null) {
                         stringBuilder.append(line);
                     }
-                    updateGraphWithJson(stringBuilder.toString());
+                    updateGraphWithJson(selectedValue, stringBuilder.toString(), false);
                     Toast.makeText(MainActivity.this, appDrawListAdapter.getItem(position), Toast.LENGTH_SHORT).show();
                 } catch (IOException e) {
                     Toast.makeText(MainActivity.this, e.getMessage(), Toast.LENGTH_SHORT).show();
@@ -370,19 +394,19 @@ public class MainActivity extends AppCompatActivity {
                 } catch (MalformedURLException e) {
                     Toast.makeText(MainActivity.this, e.getMessage(), Toast.LENGTH_SHORT).show();
                 }
-                try {
-                    InputStream inputStream = getAssets().open("html/settings.json");
-                    InputStreamReader inputStreamReader = new InputStreamReader(inputStream);
-                    BufferedReader bufferedReader = new BufferedReader(inputStreamReader);
-                    StringBuilder stringBuilder = new StringBuilder();
-                    String line;
-                    while ((line = bufferedReader.readLine()) != null) {
-                        stringBuilder.append(line);
-                    }
-                    addSettingsUiFromJson(stringBuilder.toString());
-                } catch (IOException e) {
-                    Toast.makeText(MainActivity.this, e.getMessage(), Toast.LENGTH_SHORT).show();
-                }
+//                try {
+//                    InputStream inputStream = getAssets().open("html/settings.json");
+//                    InputStreamReader inputStreamReader = new InputStreamReader(inputStream);
+//                    BufferedReader bufferedReader = new BufferedReader(inputStreamReader);
+//                    StringBuilder stringBuilder = new StringBuilder();
+//                    String line;
+//                    while ((line = bufferedReader.readLine()) != null) {
+//                        stringBuilder.append(line);
+//                    }
+//                    addSettingsUiFromJson(stringBuilder.toString());
+//                } catch (IOException e) {
+//                    Toast.makeText(MainActivity.this, e.getMessage(), Toast.LENGTH_SHORT).show();
+//                }
             }
 
             @Override
@@ -477,12 +501,14 @@ public class MainActivity extends AppCompatActivity {
     @Override
     public void onResume() {
         super.onResume();
+        graphDataCheckMs = 2000;
         connectionCheckHandler.postDelayed(connectionCheckRunnable, 0);
     }
 
     @Override
     public void onPause() {
         super.onPause();
-        connectionCheckHandler.removeCallbacks(connectionCheckRunnable);
+        graphDataCheckMs = 60000;
+        //connectionCheckHandler.removeCallbacks(connectionCheckRunnable);
     }
 }
