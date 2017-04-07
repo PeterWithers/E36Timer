@@ -104,6 +104,8 @@ volatile enum MachineState machineState = setupSystem;
 volatile unsigned long buttonLastChangeMs = 0;
 volatile unsigned long buttonDebounceMs = 100;
 
+volatile unsigned long lastMotorSpinUpMs = 0;
+volatile unsigned long currentFlightMs = 0;
 volatile unsigned long lastStateChangeMs = 0;
 volatile const unsigned long editingTimeoutMs = 3000;
 volatile const unsigned long escSpinDownMs = 1000;
@@ -590,20 +592,21 @@ bool checkDtPacket() {
 }
 
 void updateHistory() {
-    int currentIndex = (millis() / 1000) % historyLength;
+    int currentIndex = ((millis() - lastMotorSpinUpMs) / 1000);
     if (currentIndex != historyIndex) {
+        int currentBufferIndex = currentIndex % historyLength;
         float temperature = (hasPressureSensor) ? pressureSensor.readTemperature() : 0;
         float altitude = (hasPressureSensor) ? pressureSensor.readAltitude(baselinePressure) : 0;
-        temperatureHistory[currentIndex] = temperature;
-        altitudeHistory[currentIndex] = altitude;
-        escHistory[currentIndex] = escServo.read();
-        dtHistory[currentIndex] = dtServo.read();
-        rssiHistory2[currentIndex] = WiFi.RSSI();
+        temperatureHistory[currentBufferIndex] = temperature;
+        altitudeHistory[currentBufferIndex] = altitude;
+        escHistory[currentBufferIndex] = escServo.read();
+        dtHistory[currentBufferIndex] = dtServo.read();
+        rssiHistory2[currentBufferIndex] = WiFi.RSSI();
 
-        maxSvgValue = (maxSvgValue < altitudeHistory[currentIndex]) ? altitudeHistory[currentIndex] : maxSvgValue;
-        maxSvgValue = (maxSvgValue < temperatureHistory[currentIndex]) ? temperatureHistory[currentIndex] : maxSvgValue;
-        maxSvgValue = (maxSvgValue < escHistory[currentIndex]) ? escHistory[currentIndex] : maxSvgValue;
-        maxSvgValue = (maxSvgValue < dtHistory[currentIndex]) ? dtHistory[currentIndex] : maxSvgValue;
+        maxSvgValue = (maxSvgValue < altitudeHistory[currentBufferIndex]) ? altitudeHistory[currentBufferIndex] : maxSvgValue;
+        maxSvgValue = (maxSvgValue < temperatureHistory[currentBufferIndex]) ? temperatureHistory[currentBufferIndex] : maxSvgValue;
+        maxSvgValue = (maxSvgValue < escHistory[currentBufferIndex]) ? escHistory[currentBufferIndex] : maxSvgValue;
+        maxSvgValue = (maxSvgValue < dtHistory[currentBufferIndex]) ? dtHistory[currentBufferIndex] : maxSvgValue;
 
         historyIndex = currentIndex;
     }
@@ -656,12 +659,6 @@ void loop() {
             if (servoPosition <= MinPwm) {
                 machineState = waitingButtonRelease2;
                 lastStateChangeMs = millis();
-                //                memset(temperatureHistory,0,sizeof(temperatureHistory));
-                //                memset(altitudeHistory,0,sizeof(altitudeHistory));
-                //                memset(escHistory,0,sizeof(escHistory));
-                //                memset(dtHistory,0,sizeof(dtHistory));
-                //                memset(rssiHistory,0,sizeof(rssiHistory));
-                //                TODO: there needs to be a way to zero the historyIndex, eg store the history start mss
             }
             sendTelemetry();
             break;
@@ -752,6 +749,14 @@ void loop() {
                             buttonHasBeenUp = 0;
                             powerUp();
                             sendTelemetry();
+                            // zero the historyIndex and zero the history buffer
+                            lastMotorSpinUpMs = millis();
+                            memset(temperatureHistory, 0, sizeof (temperatureHistory));
+                            memset(altitudeHistory, 0, sizeof (altitudeHistory));
+                            memset(escHistory, 0, sizeof (escHistory));
+                            memset(dtHistory, 0, sizeof (dtHistory));
+                            memset(rssiHistory1, 0, sizeof (rssiHistory1));
+                            memset(rssiHistory2, 0, sizeof (rssiHistory2));
                         }
                     } else {
                         buttonHasBeenUp = 1;
@@ -770,6 +775,7 @@ void loop() {
                         lastStateChangeMs = millis();
                         buttonHasBeenUp = 1;
                         sendTelemetry();
+                        currentFlightMs = millis();
                     }
                 } else {
                     buttonHasBeenUp = 0;
@@ -991,46 +997,49 @@ void getSettingsJson() {
 void getGraphData() {
     int maxRecords = (webServer.hasArg("start")) ? 100 : historyLength / 2;
     int startIndex = (webServer.hasArg("start")) ? webServer.arg("start").toInt() : 0;
+    startIndex = (startIndex > historyIndex - historyLength) ? startIndex : historyIndex - historyLength;
     int endIndex = (startIndex + maxRecords < historyLength) ? startIndex + maxRecords : historyLength;
     String graphData = "{";
     graphData += getTelemetryJson();
     graphData += "; historyIndex: ";
     graphData += historyIndex;
+    graphData += "; currentFlightMs: ";
+    graphData += currentFlightMs;
     graphData += "; startIndex: ";
     graphData += startIndex;
     graphData += "; altitudeHistory: [";
     for (int currentIndex = startIndex; currentIndex < endIndex; currentIndex++) {
-        graphData += altitudeHistory[currentIndex];
+        graphData += altitudeHistory[currentIndex % historyLength];
         graphData += ", ";
     }
     graphData += "];";
     graphData += "temperatureHistory: [";
     for (int currentIndex = startIndex; currentIndex < endIndex; currentIndex++) {
-        graphData += temperatureHistory[currentIndex];
+        graphData += temperatureHistory[currentIndex % historyLength];
         graphData += ", ";
     }
     graphData += "];";
     graphData += "dtHistory: [";
     for (int currentIndex = startIndex; currentIndex < endIndex; currentIndex++) {
-        graphData += (dtHistory[currentIndex] / 10);
+        graphData += (dtHistory[currentIndex % historyLength] / 10);
         graphData += ", ";
     }
     graphData += "];";
     graphData += "escHistory: [";
     for (int currentIndex = startIndex; currentIndex < endIndex; currentIndex++) {
-        graphData += (escHistory[currentIndex] / 10);
+        graphData += (escHistory[currentIndex % historyLength] / 10);
         graphData += ", ";
     }
     graphData += "];";
     graphData += "rssiHistory1: [";
     for (int currentIndex = startIndex; currentIndex < endIndex; currentIndex++) {
-        graphData += (rssiHistory1[currentIndex]);
+        graphData += (rssiHistory1[currentIndex % historyLength]);
         graphData += ", ";
     }
     graphData += "];";
     graphData += "rssiHistory2: [";
     for (int currentIndex = startIndex; currentIndex < endIndex; currentIndex++) {
-        graphData += (rssiHistory2[currentIndex]);
+        graphData += (rssiHistory2[currentIndex % historyLength]);
         graphData += ", ";
     }
     graphData += "]}";
