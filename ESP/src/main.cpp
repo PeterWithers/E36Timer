@@ -42,6 +42,7 @@ bool hasPressureSensor = true;
 
 int historyLength = 1024;
 int historyIndex = 0;
+int flightStartIndex = 0;
 float temperatureHistory[1024];
 float altitudeHistory[1024];
 int escHistory[1024];
@@ -780,6 +781,7 @@ void loop() {
                         buttonHasBeenUp = 1;
                         sendTelemetry();
                         currentFlightMs = millis();
+                        flightStartIndex = historyIndex;
                     }
                 } else {
                     buttonHasBeenUp = 0;
@@ -1014,7 +1016,9 @@ void getGraphData() {
     graphData += "-";
     graphData += flightIdRandom2;
     graphData += "; currentFlightMs: ";
-    graphData += currentFlightMs;
+    graphData += millis() - currentFlightMs;
+    graphData += "; flightStartIndex: ";
+    graphData += flightStartIndex;
     graphData += "; startIndex: ";
     graphData += startIndex;
     graphData += "; altitudeHistory: [";
