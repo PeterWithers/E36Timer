@@ -91,6 +91,7 @@ public class MainActivity extends AppCompatActivity {
     private JSONArray rssiHistoryFull = new JSONArray();
     private JSONArray rssiHistory1Full = new JSONArray();
     private JSONArray rssiHistory2Full = new JSONArray();
+    private JSONArray graphLabels = new JSONArray();
     private RequestQueue requestQueue;
     private Handler connectionCheckHandler = new Handler();
     long graphDataCheckMs = 2000;
@@ -211,6 +212,7 @@ public class MainActivity extends AppCompatActivity {
             double value5 = 0;
             int startIndex = (int) jsonObject.get("startIndex");
             int totalLength = (int) jsonObject.get("historyIndex");
+            int flightStartIndex = (int) jsonObject.get("flightStartIndex");
             String flightId = (isConnected) ? (String) jsonObject.get("flightId") : null;
             if (startIndex == 0 || flightId == null || !flightId.equals(currentFlightId)) { // todo: add and compare start time ms as converted into date time
                 currentFlightId = flightId;
@@ -224,6 +226,7 @@ public class MainActivity extends AppCompatActivity {
                 rssiHistoryFull = new JSONArray();
                 rssiHistory1Full = new JSONArray();
                 rssiHistory2Full = new JSONArray();
+                graphLabels = new JSONArray();
             }
             try {
                 for (int index = 0; index < altitudeHistory.length() && startIndex + index < totalLength; index++) {
@@ -248,6 +251,14 @@ public class MainActivity extends AppCompatActivity {
                 }
             } catch (JSONException e) {
 //                Toast.makeText(MainActivity.this, e.getMessage(), Toast.LENGTH_SHORT).show();
+            }
+            while (graphLabels.length() < totalLength) {
+                int labelInt = (graphLabels.length() - flightStartIndex);
+                if (labelInt % 10 == 0) {
+                    graphLabels.put(labelInt);
+                } else {
+                    graphLabels.put("");
+                }
             }
             if (isConnected) {
                 while (rssiHistoryFull.length() < altitudeHistoryFull.length() - 1) {
@@ -280,7 +291,7 @@ public class MainActivity extends AppCompatActivity {
             myWebView.loadUrl("javascript:flightChart.data.datasets[6].data = " + rssiHistoryFull.toString() + ";");
             myWebView.loadUrl("javascript:flightChart.data.datasets[7].data = " + rssiHistory1Full.toString() + ";");
             myWebView.loadUrl("javascript:flightChart.data.datasets[8].data = " + rssiHistory2Full.toString() + ";");
-            myWebView.loadUrl("javascript:flightChart.data.labels = new Array(" + totalLength + ");");
+            myWebView.loadUrl("javascript:flightChart.data.labels = " + graphLabels.toString() + ";");
             myWebView.loadUrl("javascript:flightChart.update();");
             synchronized (jsonDataLock) {
                 // todo: add the remaining entries and test the results of saving and loading saved data
