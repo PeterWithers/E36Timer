@@ -105,6 +105,8 @@ volatile unsigned long buttonLastChangeMs = 0;
 volatile unsigned long buttonDebounceMs = 100;
 
 volatile unsigned long lastMotorSpinUpMs = 0;
+volatile unsigned long flightIdRandom1 = 0;
+volatile unsigned long flightIdRandom2 = 0;
 volatile unsigned long currentFlightMs = 0;
 volatile unsigned long lastStateChangeMs = 0;
 volatile const unsigned long editingTimeoutMs = 3000;
@@ -751,6 +753,8 @@ void loop() {
                             sendTelemetry();
                             // zero the historyIndex and zero the history buffer
                             lastMotorSpinUpMs = millis();
+                            flightIdRandom1 = random(1000, 9999); // @todo: the random seed has not been set, check that this will not cause issues in this use case.
+                            flightIdRandom2 = random(1000, 9999);
                             memset(temperatureHistory, 0, sizeof (temperatureHistory));
                             memset(altitudeHistory, 0, sizeof (altitudeHistory));
                             memset(escHistory, 0, sizeof (escHistory));
@@ -1003,6 +1007,12 @@ void getGraphData() {
     graphData += getTelemetryJson();
     graphData += "; historyIndex: ";
     graphData += historyIndex;
+    graphData += "; flightId: ";
+    graphData += lastMotorSpinUpMs;
+    graphData += "-";
+    graphData += flightIdRandom1;
+    graphData += "-";
+    graphData += flightIdRandom2;
     graphData += "; currentFlightMs: ";
     graphData += currentFlightMs;
     graphData += "; startIndex: ";
