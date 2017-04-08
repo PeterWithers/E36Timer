@@ -81,6 +81,7 @@ public class MainActivity extends AppCompatActivity {
     WebView myWebView;
     volatile String sharedJsonData = "";
     volatile int currentJsonGraphIndex = 0;
+    private String currentFlightId = null;
     static final Object jsonDataLock = new Object();
     private JSONArray altitudeHistorySmoothed = new JSONArray();
     private JSONArray escHistoryFull = new JSONArray();
@@ -210,8 +211,10 @@ public class MainActivity extends AppCompatActivity {
             double value5 = 0;
             int startIndex = (int) jsonObject.get("startIndex");
             int totalLength = (int) jsonObject.get("historyIndex");
-            if (startIndex == 0) { // todo: add and compare start time ms as converted into date time
-                // if the length is wrong then we have stale data and should reset the arrays
+            String flightId = (isConnected) ? (String) jsonObject.get("flightId") : null;
+            if (startIndex == 0 || flightId == null || !flightId.equals(currentFlightId)) { // todo: add and compare start time ms as converted into date time
+                currentFlightId = flightId;
+                // if the flight does not match then we have stale data and should reset the arrays
                 currentJsonGraphIndex = 0;
                 altitudeHistorySmoothed = new JSONArray();
                 escHistoryFull = new JSONArray();
