@@ -24,7 +24,7 @@
 #include <Ticker.h>
 
 Ticker pwmTweenTimer;
-
+ADC_MODE(ADC_VCC);
 WiFiUDP Udp;
 unsigned int localUdpPort = 2222;
 
@@ -59,7 +59,7 @@ int maxSvgValue = 0;
 // end temporary defines
 
 #define IndicatorLed     2
-#define ServoPWM         3 // shared with TX
+#define ServoPWM         4
 #define EscPWM           5
 #define ButtonPin        0
 #define SdaPin           12
@@ -1021,6 +1021,9 @@ void getGraphData() {
     graphData += flightStartIndex;
     graphData += "; startIndex: ";
     graphData += startIndex;
+    graphData += "; voltage=";
+    // battery 3.83v = "voltage":2.61
+    graphData += (ESP.getVcc() / 1000.0);
     graphData += "; altitudeHistory: [";
     for (int currentIndex = startIndex; currentIndex < endIndex; currentIndex++) {
         graphData += altitudeHistory[currentIndex % historyLength];
@@ -1302,7 +1305,7 @@ void setup() {
     } else {
         WiFi.mode(WIFI_STA);
         WiFi.config(remoteIP, timerIP, IPAddress(255, 255, 255, 0));
-        WiFi.begin(ssid); // not using , password yet
+        WiFi.begin((ssid[0] != 0) ? ssid : "E36 Timer"); // not using , password yet
         while (WiFi.status() != WL_CONNECTED) {
             delay(500);
         }
