@@ -428,7 +428,8 @@ String getTelemetryString() {
     telemetryString += analogRead(A0);
     telemetryString += "<br/>";
     telemetryString += "voltage: ";
-    telemetryString += (analogRead(A0) / 69.0);
+    //telemetryString += (analogRead(A0) / 69.0);
+    telemetryString += (ESP.getVcc() / 1000.0);
     telemetryString += "v";
     // 339 @ 4.946v
     // 286 @ 4.142v
@@ -1021,7 +1022,7 @@ void getGraphData() {
     graphData += flightStartIndex;
     graphData += "; startIndex: ";
     graphData += startIndex;
-    graphData += "; voltage=";
+    graphData += "; voltage: ";
     // battery 3.83v = "voltage":2.61
     graphData += (ESP.getVcc() / 1000.0);
     graphData += "; altitudeHistory: [";
