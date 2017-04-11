@@ -272,7 +272,8 @@ public class MainActivity extends AppCompatActivity {
                 myWebView.loadUrl("javascript:$(\"#machineState\").html(\"" + jsonObject.get("machineState") + "\");");
                 myWebView.loadUrl("javascript:$(\"#motorSeconds\").html(\"" + jsonObject.get("motorSeconds") + "\");");
                 myWebView.loadUrl("javascript:$(\"#dethermalSeconds\").html(\"" + jsonObject.get("dethermalSeconds") + "\");");
-                myWebView.loadUrl("javascript:$(\"#currentFlightMs\").html(\"" + ((int) jsonObject.get("currentFlightMs") / 100) + "\");");
+                myWebView.loadUrl("javascript:$(\"#currentFlightMs\").html(\"" + (jsonObject.getInt("currentFlightMs") / 1000.0) + "\");");
+                myWebView.loadUrl("javascript:$(\"#voltage\").html(\"" + jsonObject.get("voltage") + "\");");
             } catch (JSONException e) {
                 myWebView.loadUrl("javascript:$(\"#machineState\").html(\"\");");
                 myWebView.loadUrl("javascript:$(\"#motorSeconds\").html(\"\");");
