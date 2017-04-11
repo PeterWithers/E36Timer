@@ -42,13 +42,14 @@ bool hasPressureSensor = true;
 
 int historyLength = 1024;
 int historyIndex = 0;
+int udpHistoryIndex = 0;
 int flightStartIndex = 0;
 float temperatureHistory[1024];
 float altitudeHistory[1024];
 int escHistory[1024];
 int dtHistory[1024];
-int rssiHistory1[1024];
-int rssiHistory2[1024];
+int remoteRssiHistory[1024];
+float remoteVoltageHistory[1024];
 int maxSvgValue = 0;
 
 //#define TRIGGER_PIN  3
@@ -78,6 +79,12 @@ Servo escServo;
 
 #define TurnOnLed digitalWrite(IndicatorLed, 1)
 #define TurnOffLed digitalWrite(IndicatorLed, 0)
+
+typedef union {
+    int intType;
+    float floatType;
+    byte byteType[5];
+} UdpUnion;
 
 enum MachineState {
     setupSystem,
@@ -588,11 +595,31 @@ void checkPowerDown() {
 bool checkDtPacket() {
     int packetSize = Udp.parsePacket();
     if (packetSize) {
-        Udp.flush();
-        return true;
-    } else {
-        return false;
+        byte packetBuffer[5];
+        Udp.read(packetBuffer, 5);
+        if (packetBuffer[0] == 'd') {
+            // discard any remaining data that would become stale
+            Udp.flush();
+            return true;
+        }
+        if (packetSize > 4) {
+            int currentIndex = ((millis() - lastMotorSpinUpMs) / 1000);
+            int currentBufferIndex = currentIndex % historyLength;
+            UdpUnion udpUnion;
+            udpUnion.byteType[0] = packetBuffer[1];
+            udpUnion.byteType[1] = packetBuffer[2];
+            udpUnion.byteType[2] = packetBuffer[3];
+            udpUnion.byteType[3] = packetBuffer[4];
+            if (udpUnion.byteType[4] == 'v') {
+                remoteVoltageHistory[currentBufferIndex] = udpUnion.intType;
+            } else if (udpUnion.byteType[4] == 'r') {
+                remoteRssiHistory[currentBufferIndex] = udpUnion.floatType;
+            }
+            // discard any remaining data that would become stale
+            Udp.flush();
+        }
     }
+    return false;
 }
 
 void updateHistory() {
@@ -605,8 +632,6 @@ void updateHistory() {
         altitudeHistory[currentBufferIndex] = altitude;
         escHistory[currentBufferIndex] = escServo.read();
         dtHistory[currentBufferIndex] = dtServo.read();
-        rssiHistory2[currentBufferIndex] = WiFi.RSSI();
-
         maxSvgValue = (maxSvgValue < altitudeHistory[currentBufferIndex]) ? altitudeHistory[currentBufferIndex] : maxSvgValue;
         maxSvgValue = (maxSvgValue < temperatureHistory[currentBufferIndex]) ? temperatureHistory[currentBufferIndex] : maxSvgValue;
         maxSvgValue = (maxSvgValue < escHistory[currentBufferIndex]) ? escHistory[currentBufferIndex] : maxSvgValue;
@@ -616,10 +641,6 @@ void updateHistory() {
     }
 }
 
-void onProbeRequestPrint(const WiFiEventSoftAPModeProbeRequestReceived& evt) {
-    int currentIndex = (millis() / 1000) % historyLength;
-    rssiHistory1[currentIndex] = evt.rssi;
-}
 
 void tweenPwmValues() {
 }
@@ -628,6 +649,10 @@ void loop() {
     int servoPosition = dtServo.read();
     int escPosition = escServo.read();
     bool foundDtPacket = checkDtPacket();
+    if (foundDtPacket || RcDtIsActive) { // respond to an RC DT trigger regardless of the machine state
+        machineState = triggerDT;
+        lastStateChangeMs = millis();
+    }
     switch (machineState) {
         case setupSystem:
             break;
@@ -761,8 +786,8 @@ void loop() {
                             memset(altitudeHistory, 0, sizeof (altitudeHistory));
                             memset(escHistory, 0, sizeof (escHistory));
                             memset(dtHistory, 0, sizeof (dtHistory));
-                            memset(rssiHistory1, 0, sizeof (rssiHistory1));
-                            memset(rssiHistory2, 0, sizeof (rssiHistory2));
+                            memset(remoteRssiHistory, 0, sizeof (remoteRssiHistory));
+                            memset(remoteVoltageHistory, 0, sizeof (remoteVoltageHistory));
                         }
                     } else {
                         buttonHasBeenUp = 1;
@@ -810,11 +835,7 @@ void loop() {
                     TurnOnLed;
                     spinUpMotor(MaxPwm);
                 }
-                if (RcDtIsActive || foundDtPacket) { // respond to an RC DT trigger
-                    machineState = triggerDT;
-                    lastStateChangeMs = millis();
-                    sendTelemetry();
-                } else if (millis() - buttonLastChangeMs > buttonDebounceMs) {
+                if (millis() - buttonLastChangeMs > buttonDebounceMs) {
                     // allow restarts starts
                     if (ButtonIsDown) {
                         if (buttonHasBeenUp == 1) {
@@ -834,13 +855,7 @@ void loop() {
             }
             break;
         case freeFlight:
-            //            sendTelemetry();
-            if (RcDtIsActive || foundDtPacket) { // respond to an RC DT trigger
-                Serial.print("RcDtIsActive ");
-                machineState = triggerDT;
-                lastStateChangeMs = millis();
-                sendTelemetry();
-            } else if (millis() - lastStateChangeMs > dethermalSeconds[dethermalSecondsIndex]*1000) {
+            if (millis() - lastStateChangeMs > dethermalSeconds[dethermalSecondsIndex]*1000) {
                 Serial.print("dethermalSeconds ");
                 machineState = triggerDT;
                 lastStateChangeMs = millis();
@@ -875,8 +890,19 @@ void loop() {
             //if (millis() - buttonLastChangeMs > buttonDebounceMs) {
             if (ButtonIsDown) {
                 Udp.beginPacket(timerIP, localUdpPort);
-                Udp.write("*");
+                Udp.write("d");
                 Udp.endPacket();
+            } else {
+                int currentIndex = ((millis() - lastMotorSpinUpMs) / 1000);
+                if (currentIndex != udpHistoryIndex) {
+                    UdpUnion udpUnion;
+                    udpUnion.byteType[4] = 'r';
+                    udpUnion.intType = WiFi.RSSI();
+                    Udp.beginPacket(timerIP, localUdpPort);
+                    Udp.write(udpUnion.byteType);
+                    Udp.endPacket();
+                    udpHistoryIndex = currentIndex;
+                }
             }
             //    buttonLastChangeMs = millis();
             //}
