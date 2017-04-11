@@ -641,18 +641,12 @@ void updateHistory() {
     }
 }
 
-
 void tweenPwmValues() {
 }
 
 void loop() {
     int servoPosition = dtServo.read();
     int escPosition = escServo.read();
-    bool foundDtPacket = checkDtPacket();
-    if (foundDtPacket || RcDtIsActive) { // respond to an RC DT trigger regardless of the machine state
-        machineState = triggerDT;
-        lastStateChangeMs = millis();
-    }
     switch (machineState) {
         case setupSystem:
             break;
@@ -922,8 +916,14 @@ void loop() {
     }
     if (machineState != dtRemote) {
         updateHistory();
-        dnsServer.processNextRequest();
-        webServer.handleClient();
+        bool foundDtPacket = checkDtPacket();
+        if (foundDtPacket || RcDtIsActive) { // respond to an RC DT trigger regardless of the machine state
+            machineState = triggerDT;
+            lastStateChangeMs = millis();
+        } else {
+            dnsServer.processNextRequest();
+            webServer.handleClient();
+        }
     }
     yield();
 }
