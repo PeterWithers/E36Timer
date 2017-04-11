@@ -647,6 +647,7 @@ void tweenPwmValues() {
 void loop() {
     int servoPosition = dtServo.read();
     int escPosition = escServo.read();
+    bool hasIdleTime = false;
     switch (machineState) {
         case setupSystem:
             break;
@@ -764,6 +765,7 @@ void loop() {
             checkPowerDown();
             updateEndWipe();
             if (servoPosition <= MinPwm) {
+                hasIdleTime = true;
                 if (millis() - buttonLastChangeMs > buttonDebounceMs) {
                     if (ButtonIsDown) {
                         if (buttonHasBeenUp == 1) {
@@ -854,6 +856,8 @@ void loop() {
                 machineState = triggerDT;
                 lastStateChangeMs = millis();
                 sendTelemetry();
+            } else {
+                hasIdleTime = true;
             }
             break;
         case triggerDT:
@@ -863,6 +867,7 @@ void loop() {
             updateStartWipe(waitingForRestart);
             break;
         case waitingForRestart:
+            hasIdleTime = true;
             checkPowerDown();
             if (millis() - buttonLastChangeMs > buttonDebounceMs) {
                 if (ButtonIsDown) {
@@ -920,7 +925,7 @@ void loop() {
         if (foundDtPacket || RcDtIsActive) { // respond to an RC DT trigger regardless of the machine state
             machineState = triggerDT;
             lastStateChangeMs = millis();
-        } else {
+        } else if (hasIdleTime) {
             dnsServer.processNextRequest();
             webServer.handleClient();
         }
