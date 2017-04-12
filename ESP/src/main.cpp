@@ -48,7 +48,7 @@ float temperatureHistory[1024];
 float altitudeHistory[1024];
 int escHistory[1024];
 int dtHistory[1024];
-int remoteRssiHistory[1024];
+int32_t remoteRssiHistory[1024];
 float remoteVoltageHistory[1024];
 int maxSvgValue = 0;
 
@@ -87,7 +87,7 @@ typedef union {
         int32_t rssi;
         uint16_t voltage;
     } data;
-    uint8_t asBytes[7];
+    uint8_t asBytes[sizeof (data)];
 } TelemetryData;
 
 enum MachineState {
@@ -436,6 +436,9 @@ String getTelemetryString() {
     telemetryString += "hasPressureSensor: ";
     telemetryString += hasPressureSensor;
     telemetryString += "<br/>";
+    telemetryString += "isTimer: ";
+    telemetryString += isTimer;
+    telemetryString += "<br/>";
     telemetryString += "ADC: ";
     telemetryString += analogRead(A0);
     telemetryString += "<br/>";
@@ -609,6 +612,12 @@ bool checkDtPacket() {
         int currentBufferIndex = currentIndex % historyLength;
         TelemetryData telemetryData;
         Udp.read(telemetryData.asBytes, sizeof (telemetryData.asBytes));
+        Serial.print("dtStatus: ");
+        Serial.println(telemetryData.data.dtStatus);
+        Serial.print("voltage: ");
+        Serial.println(telemetryData.data.voltage);
+        Serial.print("rssi: ");
+        Serial.println(telemetryData.data.rssi);
         remoteVoltageHistory[currentBufferIndex] = telemetryData.data.voltage / 1000.0;
         remoteRssiHistory[currentBufferIndex] = telemetryData.data.rssi;
         // discard any remaining data that would become stale
@@ -881,7 +890,7 @@ void loop() {
             fastFlash();
             break;
         case dtRemoteConfig:
-            while (WiFi.status() == WL_CONNECTED) {
+            if (WiFi.status() == WL_CONNECTED) {
                 dnsServer.stop();
                 webServer.stop();
                 WiFi.softAPdisconnect(true);
@@ -902,6 +911,10 @@ void loop() {
                     telemetryData.data.dtStatus = 'r';
                     telemetryData.data.rssi = WiFi.RSSI();
                     telemetryData.data.voltage = ESP.getVcc();
+                    Serial.print("rssi: ");
+                    Serial.println(telemetryData.data.rssi);
+                    Serial.print("voltage: ");
+                    Serial.println(telemetryData.data.voltage);
                     udpHistoryIndex = currentIndex;
                     Udp.beginPacket(timerIP, localUdpPort);
                     Udp.write(telemetryData.asBytes, sizeof (telemetryData));
@@ -1335,13 +1348,15 @@ void setup() {
     webServer.begin();
     Udp.begin(localUdpPort);
 
-    Wire.pins(SdaPin, SclPin);
-    pressureSensor.begin();
-    //    double temperature, pressure, altitude;
-    //    getPressure(temperature, pressure, altitude);
-    baselinePressure = pressureSensor.readPressure();
+    if (hasPressureSensor) {
+        Wire.pins(SdaPin, SclPin);
+        pressureSensor.begin();
+        //    double temperature, pressure, altitude;
+        //    getPressure(temperature, pressure, altitude);
+        baselinePressure = pressureSensor.readPressure();
 
-    Serial.print("baseline pressure: ");
-    Serial.print(baselinePressure);
-    Serial.println(" mb");
+        Serial.print("baseline pressure: ");
+        Serial.print(baselinePressure);
+        Serial.println(" mb");
+    }
 }
