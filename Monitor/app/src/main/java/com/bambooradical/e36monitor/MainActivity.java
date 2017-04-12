@@ -89,8 +89,8 @@ public class MainActivity extends AppCompatActivity {
     private JSONArray altitudeHistoryFull = new JSONArray();
     private JSONArray temperatureHistoryFull = new JSONArray();
     private JSONArray rssiHistoryFull = new JSONArray();
-    private JSONArray rssiHistory1Full = new JSONArray();
-    private JSONArray rssiHistory2Full = new JSONArray();
+    private JSONArray remoteRssiHistoryFull = new JSONArray();
+    private JSONArray remoteVoltageHistoryFull = new JSONArray();
     private JSONArray graphLabels = new JSONArray();
     private RequestQueue requestQueue;
     private Handler connectionCheckHandler = new Handler();
@@ -196,11 +196,11 @@ public class MainActivity extends AppCompatActivity {
             final JSONArray dtHistory = (JSONArray) jsonObject.get("dtHistory");
             final JSONArray altitudeHistory = (JSONArray) jsonObject.get("altitudeHistory");
             final JSONArray temperatureHistory = (JSONArray) jsonObject.get("temperatureHistory");
-            JSONArray rssiHistory1 = null;
-            JSONArray rssiHistory2 = null;
+            JSONArray remoteRssiHistory = null;
+            JSONArray remoteVoltageHistory = null;
             try {
-                rssiHistory1 = (JSONArray) jsonObject.get("rssiHistory1");
-                rssiHistory2 = (JSONArray) jsonObject.get("rssiHistory2");
+                remoteRssiHistory = (JSONArray) jsonObject.get("remoteRssiHistory");
+                remoteVoltageHistory = (JSONArray) jsonObject.get("remoteVoltageHistory");
             } catch (JSONException e) {
                 hasExtraHistory = false;
             }
@@ -224,8 +224,8 @@ public class MainActivity extends AppCompatActivity {
                 altitudeHistoryFull = new JSONArray();
                 temperatureHistoryFull = new JSONArray();
                 rssiHistoryFull = new JSONArray();
-                rssiHistory1Full = new JSONArray();
-                rssiHistory2Full = new JSONArray();
+                remoteRssiHistoryFull = new JSONArray();
+                remoteVoltageHistoryFull = new JSONArray();
                 graphLabels = new JSONArray();
             }
             try {
@@ -245,8 +245,8 @@ public class MainActivity extends AppCompatActivity {
                     altitudeHistoryFull.put(startIndex + index, altitudeHistory.getDouble(index));
                     temperatureHistoryFull.put(startIndex + index, temperatureHistory.getDouble(index));
                     if (hasExtraHistory) {
-                        rssiHistory1Full.put(startIndex + index, rssiHistory1.getInt(index));
-                        rssiHistory2Full.put(startIndex + index, rssiHistory2.getInt(index));
+                        remoteRssiHistoryFull.put(startIndex + index, remoteRssiHistory.getInt(index));
+                        remoteVoltageHistoryFull.put(startIndex + index, remoteVoltageHistory.getInt(index));
                     }
                 }
             } catch (JSONException e) {
@@ -290,8 +290,8 @@ public class MainActivity extends AppCompatActivity {
             myWebView.loadUrl("javascript:flightChart.data.datasets[4].data = " + escHistoryFull.toString() + ";");
             myWebView.loadUrl("javascript:flightChart.data.datasets[5].data = " + dtHistoryFull.toString() + ";");
             myWebView.loadUrl("javascript:flightChart.data.datasets[6].data = " + rssiHistoryFull.toString() + ";");
-            myWebView.loadUrl("javascript:flightChart.data.datasets[7].data = " + rssiHistory1Full.toString() + ";");
-            myWebView.loadUrl("javascript:flightChart.data.datasets[8].data = " + rssiHistory2Full.toString() + ";");
+            myWebView.loadUrl("javascript:flightChart.data.datasets[7].data = " + remoteRssiHistoryFull.toString() + ";");
+            myWebView.loadUrl("javascript:flightChart.data.datasets[8].data = " + remoteVoltageHistoryFull.toString() + ";");
             myWebView.loadUrl("javascript:flightChart.data.labels = " + graphLabels.toString() + ";");
             myWebView.loadUrl("javascript:flightChart.update();");
             synchronized (jsonDataLock) {
@@ -301,8 +301,8 @@ public class MainActivity extends AppCompatActivity {
                 jsonObject.put("escHistory", escHistoryFull);
                 jsonObject.put("dtHistory", dtHistoryFull);
                 jsonObject.put("rssiHistory", rssiHistoryFull);
-                jsonObject.put("rssiHistory1", rssiHistory1Full);
-                jsonObject.put("rssiHistory2", rssiHistory2Full);
+                jsonObject.put("remoteRssiHistory", remoteRssiHistoryFull);
+                jsonObject.put("remoteVoltageHistory", remoteVoltageHistoryFull);
                 jsonObject.put("startIndex", 0);
                 sharedJsonData = jsonObject.toString();
             }
