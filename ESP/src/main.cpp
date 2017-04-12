@@ -81,10 +81,14 @@ Servo escServo;
 #define TurnOffLed digitalWrite(IndicatorLed, 0)
 
 typedef union {
-    int intType;
-    float floatType;
-    byte byteType[5];
-} UdpUnion;
+
+    struct {
+        char dtStatus;
+        int32_t rssi;
+        uint16_t voltage;
+    } data;
+    uint8_t asBytes[7];
+} TelemetryData;
 
 enum MachineState {
     setupSystem,
@@ -104,6 +108,7 @@ enum MachineState {
     freeFlight,
     triggerDT,
     waitingForRestart,
+    dtRemoteConfig,
     dtRemote
 };
 
@@ -595,29 +600,19 @@ void checkPowerDown() {
 bool checkDtPacket() {
     int packetSize = Udp.parsePacket();
     if (packetSize) {
-        byte packetBuffer[5];
-        Udp.read(packetBuffer, 5);
-        if (packetBuffer[0] == 'd') {
+        if (Udp.peek() == 'd') {
             // discard any remaining data that would become stale
             Udp.flush();
             return true;
         }
-        if (packetSize > 4) {
-            int currentIndex = ((millis() - lastMotorSpinUpMs) / 1000);
-            int currentBufferIndex = currentIndex % historyLength;
-            UdpUnion udpUnion;
-            udpUnion.byteType[0] = packetBuffer[1];
-            udpUnion.byteType[1] = packetBuffer[2];
-            udpUnion.byteType[2] = packetBuffer[3];
-            udpUnion.byteType[3] = packetBuffer[4];
-            if (udpUnion.byteType[4] == 'v') {
-                remoteVoltageHistory[currentBufferIndex] = udpUnion.intType;
-            } else if (udpUnion.byteType[4] == 'r') {
-                remoteRssiHistory[currentBufferIndex] = udpUnion.floatType;
-            }
-            // discard any remaining data that would become stale
-            Udp.flush();
-        }
+        int currentIndex = ((millis() - lastMotorSpinUpMs) / 1000);
+        int currentBufferIndex = currentIndex % historyLength;
+        TelemetryData telemetryData;
+        Udp.read(telemetryData.asBytes, sizeof (telemetryData.asBytes));
+        remoteVoltageHistory[currentBufferIndex] = telemetryData.data.voltage / 1000.0;
+        remoteRssiHistory[currentBufferIndex] = telemetryData.data.rssi;
+        // discard any remaining data that would become stale
+        Udp.flush();
     }
     return false;
 }
@@ -885,33 +880,34 @@ void loop() {
             }
             fastFlash();
             break;
+        case dtRemoteConfig:
+            while (WiFi.status() == WL_CONNECTED) {
+                dnsServer.stop();
+                webServer.stop();
+                WiFi.softAPdisconnect(true);
+                WiFi.mode(WIFI_STA);
+                machineState = dtRemote;
+            }
+            break;
         case dtRemote:
-            //if (millis() - buttonLastChangeMs > buttonDebounceMs) {
+            TelemetryData telemetryData;
             if (ButtonIsDown) {
+                telemetryData.data.dtStatus = 'd';
                 Udp.beginPacket(timerIP, localUdpPort);
-                Udp.write("d");
+                Udp.write(telemetryData.asBytes, sizeof (telemetryData));
                 Udp.endPacket();
             } else {
                 int currentIndex = ((millis() - lastMotorSpinUpMs) / 1000);
                 if (currentIndex != udpHistoryIndex) {
-                    UdpUnion udpUnion;
-                    udpUnion.byteType[4] = 'r';
-                    udpUnion.intType = WiFi.RSSI();
-                    Udp.beginPacket(timerIP, localUdpPort);
-                    Udp.write(udpUnion.byteType);
-                    Udp.endPacket();
+                    telemetryData.data.dtStatus = 'r';
+                    telemetryData.data.rssi = WiFi.RSSI();
+                    telemetryData.data.voltage = ESP.getVcc();
                     udpHistoryIndex = currentIndex;
+                    Udp.beginPacket(timerIP, localUdpPort);
+                    Udp.write(telemetryData.asBytes, sizeof (telemetryData));
+                    Udp.endPacket();
                 }
             }
-            //    buttonLastChangeMs = millis();
-            //}
-            //            int currentIndex = (millis() / 1000) % historyLength;
-            //            if (currentIndex != historyIndex) {
-            //                Udp.beginPacket(timerIP, localUdpPort);
-            //                Udp.write(WiFi.RSSI());
-            //                Udp.endPacket();
-            //                historyIndex = currentIndex;
-            //            }
             int packetSize = Udp.parsePacket();
             if (packetSize) {
                 Serial.print("Found packet");
@@ -919,7 +915,10 @@ void loop() {
             }
             break;
     }
-    if (machineState != dtRemote) {
+    if (machineState == dtRemoteConfig) {
+        dnsServer.processNextRequest();
+        webServer.handleClient();
+    } else if (machineState != dtRemote) {
         updateHistory();
         bool foundDtPacket = checkDtPacket();
         if (foundDtPacket || RcDtIsActive) { // respond to an RC DT trigger regardless of the machine state
@@ -1080,15 +1079,15 @@ void getGraphData() {
         graphData += ", ";
     }
     graphData += "];";
-    graphData += "rssiHistory1: [";
+    graphData += "remoteRssiHistory: [";
     for (int currentIndex = startIndex; currentIndex < endIndex; currentIndex++) {
-        graphData += (rssiHistory1[currentIndex % historyLength]);
+        graphData += (remoteRssiHistory[currentIndex % historyLength]);
         graphData += ", ";
     }
     graphData += "];";
-    graphData += "rssiHistory2: [";
+    graphData += "remoteVoltageHistory: [";
     for (int currentIndex = startIndex; currentIndex < endIndex; currentIndex++) {
-        graphData += (rssiHistory2[currentIndex % historyLength]);
+        graphData += (remoteVoltageHistory[currentIndex % historyLength]);
         graphData += ", ";
     }
     graphData += "]}";
@@ -1183,7 +1182,7 @@ void defaultPage() {
             //            "<button id='remoteButton'>remoteButton</button>"
             //            "<div id='buttonResult'>buttonResult</div>"
             "<br/>"
-            "<a href='motorRun'>motorRun</a><br/><br/>"
+            //            "<a href='motorRun'>motorRun</a><br/><br/>"
             "<a href='triggerDT'>triggerDT</a><br/><br/>"
             "<a href='restart'>restart</a><br/><br/><br/>"
             //            "<br/>"
@@ -1270,20 +1269,13 @@ void getWaitingButtonStart() {
     defaultPage();
 }
 
-void getMotorRun() {
-    lastStateChangeMs = millis();
-    machineState = motorRun;
-    defaultPage();
-}
-
 void toggleSensors() {
     hasPressureSensor = !hasPressureSensor;
     webServer.sendContent((hasPressureSensor) ? "using sensors" : "ignoring sensors");
 }
 
 void toggleTimerOrRemote() {
-    // todo: for now there would be no way to get back to being a timer so this is disable for now
-    //isTimer = !isTimer;
+    isTimer = !isTimer;
     webServer.sendContent((isTimer) ? "isTimer" : "isRemote");
 }
 
@@ -1305,44 +1297,42 @@ void setup() {
         }
         pwmTweenTimer.attach_ms(100, tweenPwmValues);
         WiFi.mode(WIFI_AP);
-        WiFi.softAPConfig(timerIP, timerIP, IPAddress(255, 255, 255, 0));
-        WiFi.softAP((ssid[0] != 0) ? ssid : "E36 Timer"); // not using , password yet
+    } else {
+        WiFi.mode(WIFI_AP_STA);
+        WiFi.config(remoteIP, timerIP, IPAddress(255, 255, 255, 0));
+        WiFi.begin((ssid[0] != 0) ? ssid : "E36 Timer"); // not using , password yet
+        machineState = dtRemoteConfig;
+    }
+    WiFi.softAPConfig(timerIP, timerIP, IPAddress(255, 255, 255, 0));
+    WiFi.softAP((ssid[0] != 0) ? ssid : "E36 Timer"); // not using , password yet
 
-        // if DNSServer is started with "*" for domain name, it will reply with
-        // provided IP to all DNS request
-        dnsServer.start(DNS_PORT, "*", timerIP);
-
-        webServer.on("/telemetry", getTelemetry);
+    // if DNSServer is started with "*" for domain name, it will reply with
+    // provided IP to all DNS request
+    dnsServer.start(DNS_PORT, "*", timerIP);
+    if (isTimer) {
         webServer.on("/graph.json", getGraphData);
         webServer.on("/graph.svg", getGraphSvg);
         webServer.on("/triggerDT", getTriggerDT);
-        webServer.on("/motorRun", getMotorRun);
+        //        webServer.on("/motorRun", getMotorRun);
         webServer.on("/restart", getWaitingButtonStart);
         webServer.on("/motorDecrease", motorDecrease);
         webServer.on("/motorIncrease", motorIncrease);
         webServer.on("/dtDecrease", dtDecrease);
         webServer.on("/dtIncrease", dtIncrease);
-        webServer.on("/saveChanges", saveChanges);
         webServer.on("/toggleSensors", toggleSensors);
-        webServer.on("/toggleTimerOrRemote", toggleTimerOrRemote);
-        webServer.on("/requestFirmwareUpdate", requestFirmwareUpdate);
-        webServer.on("/settings", HTTP_GET, getSettingsJson);
-        //webServer.on("/dethermalSeconds", HTTP_PUT, putDethermalSeconds);
-        //webServer.on("/motorSeconds", HTTP_PUT, putMotorSeconds);
-        //webServer.on("/powerDownServoMs", HTTP_PUT, putPowerDownServoMs);
-        //webServer.on("/powerDownEscSeconds", HTTP_PUT, putPowerDownEscSeconds);
-        //webServer.on("/hasPressureSensor", HTTP_PUT, putHasPressureSensor);
-        webServer.onNotFound(defaultPage);
-        webServer.begin();
-    } else {
-        WiFi.mode(WIFI_STA);
-        WiFi.config(remoteIP, timerIP, IPAddress(255, 255, 255, 0));
-        WiFi.begin((ssid[0] != 0) ? ssid : "E36 Timer"); // not using , password yet
-        while (WiFi.status() != WL_CONNECTED) {
-            delay(500);
-        }
-        machineState = dtRemote;
     }
+    webServer.on("/telemetry", getTelemetry);
+    webServer.on("/saveChanges", saveChanges);
+    webServer.on("/toggleTimerOrRemote", toggleTimerOrRemote);
+    webServer.on("/requestFirmwareUpdate", requestFirmwareUpdate);
+    webServer.on("/settings", HTTP_GET, getSettingsJson);
+    //webServer.on("/dethermalSeconds", HTTP_PUT, putDethermalSeconds);
+    //webServer.on("/motorSeconds", HTTP_PUT, putMotorSeconds);
+    //webServer.on("/powerDownServoMs", HTTP_PUT, putPowerDownServoMs);
+    //webServer.on("/powerDownEscSeconds", HTTP_PUT, putPowerDownEscSeconds);
+    //webServer.on("/hasPressureSensor", HTTP_PUT, putHasPressureSensor);
+    webServer.onNotFound(defaultPage);
+    webServer.begin();
     Udp.begin(localUdpPort);
 
     Wire.pins(SdaPin, SclPin);
