@@ -102,7 +102,7 @@ enum MachineState {
     startWipe2, // between the settings wipe to indicate the change
     endWipe2,
     editDtTime,
-    saveSettings,
+    saveEepromSettings,
     waitingButtonStart,
     clearGraphArrays,
     waitingButtonRelease,
@@ -306,8 +306,8 @@ String getTelemetryJson() {
         case editDtTime:
             returnString += "editDtTime";
             break;
-        case saveSettings:
-            returnString += "saveSettings";
+        case saveEepromSettings:
+            returnString += "saveEepromSettings";
             break;
         case waitingButtonStart:
             returnString += "waitingButtonStart";
@@ -404,8 +404,8 @@ String getTelemetryString() {
         case editDtTime:
             telemetryString += "editDtTime";
             break;
-        case saveSettings:
-            telemetryString += "saveSettings";
+        case saveEepromSettings:
+            telemetryString += "saveEepromSettings";
             break;
         case waitingButtonStart:
             telemetryString += "waitingButtonStart";
@@ -657,7 +657,6 @@ void updateHistory() {
 void machineStateISR() {
     int servoPosition = dtServo.read();
     int escPosition = escServo.read();
-    bool hasIdleTime = false;
     switch (machineState) {
         case setupSystem:
             break;
@@ -757,7 +756,7 @@ void machineStateISR() {
             if (millis() > editingStartMs + editingTimeoutMs) {
                 // we leave the ESC powered down until this point because some ESCs have timing issues that the bootloader delay seems to affect
                 powerUpEsc();
-                machineState = saveSettings;
+                machineState = saveEepromSettings;
                 lastStateChangeMs = millis();
             }
             trippleFlash();
@@ -766,7 +765,6 @@ void machineStateISR() {
             checkPowerDown();
             updateEndWipe();
             if (servoPosition <= MinPwm) {
-                hasIdleTime = true;
                 if (millis() - buttonLastChangeMs > buttonDebounceMs) {
                     if (ButtonIsDown) {
                         if (buttonHasBeenUp == 1) {
@@ -841,8 +839,6 @@ void machineStateISR() {
                 //                Serial.print("dethermalSeconds ");
                 machineState = triggerDT;
                 lastStateChangeMs = millis();
-            } else {
-                hasIdleTime = true;
             }
             break;
         case triggerDT:
@@ -852,7 +848,6 @@ void machineStateISR() {
             updateStartWipe(waitingForRestart);
             break;
         case waitingForRestart:
-            hasIdleTime = true;
             checkPowerDown();
             if (millis() - buttonLastChangeMs > buttonDebounceMs) {
                 if (ButtonIsDown) {
@@ -874,7 +869,7 @@ void machineStateISR() {
 
 void loop() {
     switch (machineState) {
-        case saveSettings:
+        case saveEepromSettings:
             saveSettings();
             machineState = waitingButtonStart;
             break;
@@ -939,7 +934,7 @@ void loop() {
         if (foundDtPacket || RcDtIsActive) { // respond to an RC DT trigger regardless of the machine state
             machineState = triggerDT;
             lastStateChangeMs = millis();
-        } else if (hasIdleTime) {
+        } else {
             dnsServer.processNextRequest();
             webServer.handleClient();
         }
