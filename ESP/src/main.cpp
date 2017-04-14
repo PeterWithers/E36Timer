@@ -15,6 +15,7 @@
 #include <Servo.h>
 // todo: this include and related defines are temporary
 //#include <NewPing.h>
+#include <user_interface.h>
 #include <ESP8266WiFi.h>
 #include <DNSServer.h>
 #include <ESP8266WebServer.h>
@@ -1351,6 +1352,11 @@ void setup() {
     webServer.begin();
     Udp.begin(localUdpPort);
 
+    struct rst_info * resetInfo = ESP.getResetInfoPtr();
+    if (resetInfo->reason == REASON_WDT_RST) {
+        // if the BMP180 is not present then the read pressure will never return and the WDT will trigger, so we disable it here if the WDT was activated
+        hasPressureSensor = false;
+    }
     if (hasPressureSensor) {
         Wire.pins(SdaPin, SclPin);
         pressureSensor.begin();
