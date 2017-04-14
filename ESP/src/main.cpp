@@ -38,7 +38,7 @@ ESP8266HTTPUpdateServer httpUpdater;
 
 Sodaq_BMP085 pressureSensor;
 double baselinePressure;
-bool isTimer = true;
+bool isTimer = false;
 bool hasPressureSensor = true;
 
 int historyLength = 1024;
@@ -232,13 +232,14 @@ void saveSettings() {
         Serial.print(" dethermalSecondsIndex unchanged");
     }
     byte settingsByte = EEPROM.read(3);
-    if (bitRead(settingsByte, 0) != isTimer) {
-        Serial.print(" toggleTimerOrRemote storing changes");
+    if (bitRead(settingsByte, 0) != isTimer || bitRead(settingsByte, 1) != hasPressureSensor) {
+        Serial.print(" toggleTimerOrRemote, hasPressureSensor storing changes");
         bitWrite(settingsByte, 0, isTimer);
+        bitWrite(settingsByte, 1, hasPressureSensor);
         EEPROM.write(3, settingsByte);
         changeMade = true;
     } else {
-        Serial.print(" toggleTimerOrRemote unchanged");
+        Serial.print(" toggleTimerOrRemote, hasPressureSensor unchanged");
     }
     if (changeMade) {
         Serial.print(" writing changes");
@@ -255,6 +256,7 @@ void loadSavedSettings() {
     dethermalSecondsIndex = EEPROM.read(2);
     byte settingsByte = EEPROM.read(3);
     isTimer = bitRead(settingsByte, 0);
+    hasPressureSensor = bitRead(settingsByte, 1);
     motorSecondsIndex = (motorSecondsIndex < motorSecondsSize) ? motorSecondsIndex : motorSecondsSize - 1;
     dethermalSecondsIndex = (dethermalSecondsIndex < dethermalSecondsSize) ? dethermalSecondsIndex : dethermalSecondsSize - 1;
     EEPROM.get(9, ssid);
@@ -334,6 +336,12 @@ String getTelemetryJson() {
             break;
         case waitingFirmwareUpdate:
             returnString += "waitingFirmwareUpdate";
+            break;
+        case dtRemoteConfig:
+            returnString += "dtRemoteConfig";
+            break;
+        case dtRemote:
+            returnString += "dtRemote";
             break;
     }
     int servoPosition = dtServo.read();
@@ -435,6 +443,12 @@ String getTelemetryString() {
             break;
         case waitingFirmwareUpdate:
             telemetryString += "waitingFirmwareUpdate";
+            break;
+        case dtRemoteConfig:
+            telemetryString += "dtRemoteConfig";
+            break;
+        case dtRemote:
+            telemetryString += "dtRemote";
             break;
     }
     telemetryString += "<br/>";
@@ -1353,9 +1367,11 @@ void setup() {
     Udp.begin(localUdpPort);
 
     struct rst_info * resetInfo = ESP.getResetInfoPtr();
-    if (resetInfo->reason == REASON_WDT_RST) {
-        // if the BMP180 is not present then the read pressure will never return and the WDT will trigger, so we disable it here if the WDT was activated
+    Serial.println(ESP.getResetReason());
+    if (resetInfo->reason == REASON_EXCEPTION_RST) {
+        // if the BMP180 is not present then the read pressure will cause an exception, so we disable it here if an exception caused a restart
         hasPressureSensor = false;
+        Serial.println("Exception reset occurred, disabling the pressure sensor");
     }
     if (hasPressureSensor) {
         Wire.pins(SdaPin, SclPin);
