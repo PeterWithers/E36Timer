@@ -102,7 +102,9 @@ enum MachineState {
     startWipe2, // between the settings wipe to indicate the change
     endWipe2,
     editDtTime,
+    saveSettings,
     waitingButtonStart,
+    clearGraphArrays,
     waitingButtonRelease,
     motorRun,
     freeFlight,
@@ -304,8 +306,14 @@ String getTelemetryJson() {
         case editDtTime:
             returnString += "editDtTime";
             break;
+        case saveSettings:
+            returnString += "saveSettings";
+            break;
         case waitingButtonStart:
             returnString += "waitingButtonStart";
+            break;
+        case clearGraphArrays:
+            returnString += "clearGraphArrays";
             break;
         case waitingButtonRelease:
             returnString += "waitingButtonRelease";
@@ -396,8 +404,14 @@ String getTelemetryString() {
         case editDtTime:
             telemetryString += "editDtTime";
             break;
+        case saveSettings:
+            telemetryString += "saveSettings";
+            break;
         case waitingButtonStart:
             telemetryString += "waitingButtonStart";
+            break;
+        case clearGraphArrays:
+            telemetryString += "clearGraphArrays";
             break;
         case waitingButtonRelease:
             telemetryString += "waitingButtonRelease";
@@ -564,13 +578,13 @@ void displayDethermalTime() {
 void powerUpDt() {
     dtServo.attach(ServoPWM, 1000, 2000); // enable the servo output
     //dtServo.write(0);
-//    Serial.println("servo attach");
+    //    Serial.println("servo attach");
 }
 
 void powerUpEsc() {
     escServo.attach(EscPWM, 1000, 2000); // enable the ESC output
     //escServo.write(0);
-//    Serial.println("esc attach");
+    //    Serial.println("esc attach");
 }
 
 void powerUp() {
@@ -583,14 +597,14 @@ void checkPowerDown() {
         if (dtServo.attached()) {
             // power down the servo after the given delay
             dtServo.detach(); // disable the servo output
-//            Serial.println("servo detach");
+            //            Serial.println("servo detach");
         }
     }
     if (millis() - lastStateChangeMs > powerDownEscSeconds) {
         if (escServo.attached()) {
             // power down the ESC after the given delay
             escServo.detach(); // disable the ESC output
-//            Serial.println("esc detach");
+            //            Serial.println("esc detach");
         }
     }
 }
@@ -640,10 +654,7 @@ void updateHistory() {
     }
 }
 
-void tweenPwmValues() {
-}
-
-void loop() {
+void machineStateISR() {
     int servoPosition = dtServo.read();
     int escPosition = escServo.read();
     bool hasIdleTime = false;
@@ -746,9 +757,8 @@ void loop() {
             if (millis() > editingStartMs + editingTimeoutMs) {
                 // we leave the ESC powered down until this point because some ESCs have timing issues that the bootloader delay seems to affect
                 powerUpEsc();
-                machineState = waitingButtonStart;
+                machineState = saveSettings;
                 lastStateChangeMs = millis();
-                saveSettings();
             }
             trippleFlash();
             break;
@@ -760,20 +770,10 @@ void loop() {
                 if (millis() - buttonLastChangeMs > buttonDebounceMs) {
                     if (ButtonIsDown) {
                         if (buttonHasBeenUp == 1) {
-                            machineState = waitingButtonRelease;
+                            machineState = clearGraphArrays;
                             lastStateChangeMs = millis();
                             buttonHasBeenUp = 0;
                             powerUp();
-                            // zero the historyIndex and zero the history buffer
-                            lastMotorSpinUpMs = millis();
-                            flightIdRandom1 = random(1000, 9999); // @todo: the random seed has not been set, check that this will not cause issues in this use case.
-                            flightIdRandom2 = random(1000, 9999);
-                            memset(temperatureHistory, 0, sizeof (temperatureHistory));
-                            memset(altitudeHistory, 0, sizeof (altitudeHistory));
-                            memset(escHistory, 0, sizeof (escHistory));
-                            memset(dtHistory, 0, sizeof (dtHistory));
-                            memset(remoteRssiHistory, 0, sizeof (remoteRssiHistory));
-                            memset(remoteVoltageHistory, 0, sizeof (remoteVoltageHistory));
                         }
                     } else {
                         buttonHasBeenUp = 1;
@@ -838,7 +838,7 @@ void loop() {
             break;
         case freeFlight:
             if (millis() - lastStateChangeMs > dethermalSeconds[dethermalSecondsIndex]*1000) {
-//                Serial.print("dethermalSeconds ");
+                //                Serial.print("dethermalSeconds ");
                 machineState = triggerDT;
                 lastStateChangeMs = millis();
             } else {
@@ -869,6 +869,28 @@ void loop() {
             }
             fastFlash();
             break;
+    }
+}
+
+void loop() {
+    switch (machineState) {
+        case saveSettings:
+            saveSettings();
+            machineState = waitingButtonStart;
+            break;
+        case clearGraphArrays:
+            machineState = waitingButtonRelease;
+            // zero the historyIndex and zero the history buffer
+            lastMotorSpinUpMs = millis();
+            flightIdRandom1 = random(1000, 9999); // @todo: the random seed has not been set, check that this will not cause issues in this use case.
+            flightIdRandom2 = random(1000, 9999);
+            memset(temperatureHistory, 0, sizeof (temperatureHistory));
+            memset(altitudeHistory, 0, sizeof (altitudeHistory));
+            memset(escHistory, 0, sizeof (escHistory));
+            memset(dtHistory, 0, sizeof (dtHistory));
+            memset(remoteRssiHistory, 0, sizeof (remoteRssiHistory));
+            memset(remoteVoltageHistory, 0, sizeof (remoteVoltageHistory));
+            break;
         case dtRemoteConfig:
             if (WiFi.status() == WL_CONNECTED) {
                 dnsServer.stop();
@@ -891,10 +913,10 @@ void loop() {
                     telemetryData.data.dtStatus = 'r';
                     telemetryData.data.rssi = WiFi.RSSI();
                     telemetryData.data.voltage = ESP.getVcc();
-//                    Serial.print("rssi: ");
-//                    Serial.println(telemetryData.data.rssi);
-//                    Serial.print("voltage: ");
-//                    Serial.println(telemetryData.data.voltage);
+                    //                    Serial.print("rssi: ");
+                    //                    Serial.println(telemetryData.data.rssi);
+                    //                    Serial.print("voltage: ");
+                    //                    Serial.println(telemetryData.data.voltage);
                     udpHistoryIndex = currentIndex;
                     Udp.beginPacket(timerIP, localUdpPort);
                     Udp.write(telemetryData.asBytes, sizeof (telemetryData));
@@ -903,7 +925,7 @@ void loop() {
             }
             int packetSize = Udp.parsePacket();
             if (packetSize) {
-//                Serial.print("Found packet");
+                //                Serial.print("Found packet");
                 Udp.flush();
             }
             break;
@@ -1286,7 +1308,7 @@ void setup() {
             machineState = startWipe1;
             powerUpDt();
         }
-        pwmTweenTimer.attach_ms(100, tweenPwmValues);
+        pwmTweenTimer.attach_ms(100, machineStateISR);
         WiFi.mode(WIFI_AP);
     } else {
         WiFi.mode(WIFI_AP_STA);
