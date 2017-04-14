@@ -110,6 +110,7 @@ enum MachineState {
     freeFlight,
     triggerDT,
     waitingForRestart,
+    waitingFirmwareUpdate,
     dtRemoteConfig,
     dtRemote
 };
@@ -330,6 +331,9 @@ String getTelemetryJson() {
         case waitingForRestart:
             returnString += "waitingForRestart";
             break;
+        case waitingFirmwareUpdate:
+            returnString += "waitingFirmwareUpdate";
+            break;
     }
     int servoPosition = dtServo.read();
     int escPosition = escServo.read();
@@ -427,6 +431,9 @@ String getTelemetryString() {
             break;
         case waitingForRestart:
             telemetryString += "waitingForRestart";
+            break;
+        case waitingFirmwareUpdate:
+            telemetryString += "waitingFirmwareUpdate";
             break;
     }
     telemetryString += "<br/>";
@@ -1252,12 +1259,13 @@ void saveChanges() {
 void requestFirmwareUpdate() {
     String responseString = "<!DOCTYPE html><html><head><title>E36</title></head><body><h1>Firmware Update</h1><br/><br/>";
     int responseCode;
-    if (ButtonIsDown) {
+    if (machineState == waitingFirmwareUpdate && ButtonIsDown) {
         httpUpdater.setup(&webServer);
         responseString += "Update service ready";
         responseString += "<br/><br/><a href='update'>upload form</a>";
         responseCode = 200;
     } else {
+        machineState = waitingFirmwareUpdate;
         responseString += "Please hold down the button to begin update";
         responseCode = 403;
     }
