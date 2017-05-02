@@ -10,3 +10,5 @@ Motor times: 5, 10, 15 seconds
 DT time: 0, 5, 30, 60, 90, 120, 180, 240, 300 seconds
 
 It is possible that powersupply noise or interruptions could cause the attiny to brownout. For this reason the first action on power up should be to release the DT, otherwise a brownout mid flight could prevent or delay DT.
+
+The main working branch for this project is now on GITLAB during the current stage of development.
